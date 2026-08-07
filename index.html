@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Human Tracker — Infinity Intelligence</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body class="dark-theme" id="app-body">
+
+  <!-- ======================================================
+       BACKGROUND CANVAS (particles + animated grid)
+  ====================================================== -->
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+  <!-- ======================================================
+       TOAST NOTIFICATION CONTAINER
+  ====================================================== -->
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+
+  <!-- ======================================================
+       SETTINGS PANEL (slide-in)
+  ====================================================== -->
+  <aside id="settings-panel" class="settings-panel glass" aria-label="Settings" aria-hidden="true">
+    <div class="settings-header">
+      <span class="settings-icon">⚙</span>
+      <h2>Settings</h2>
+      <button id="close-settings" class="icon-btn" aria-label="Close settings">✕</button>
+    </div>
+    <div class="settings-body">
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Detection</h3>
+        <label class="toggle-row">
+          <span>Face Detection</span>
+          <input type="checkbox" id="toggle-face" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Pose Detection</span>
+          <input type="checkbox" id="toggle-pose" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Hand Tracking</span>
+          <input type="checkbox" id="toggle-hands" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Motion Detection</span>
+          <input type="checkbox" id="toggle-motion" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Overlay</h3>
+        <label class="toggle-row">
+          <span>Bounding Boxes</span>
+          <input type="checkbox" id="toggle-bbox" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Landmarks</span>
+          <input type="checkbox" id="toggle-landmarks" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Skeleton</span>
+          <input type="checkbox" id="toggle-skeleton" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Show FPS</span>
+          <input type="checkbox" id="toggle-fps" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Camera</h3>
+        <label class="toggle-row">
+          <span>Mirror Camera</span>
+          <input type="checkbox" id="toggle-mirror" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Notifications</span>
+          <input type="checkbox" id="toggle-notify" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+        <label class="toggle-row">
+          <span>Dark Theme</span>
+          <input type="checkbox" id="toggle-theme" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">AI Confidence</h3>
+        <div class="slider-row">
+          <span>Min Confidence</span>
+          <span id="confidence-val" class="mono">0.5</span>
+        </div>
+        <input type="range" id="confidence-slider" class="slider" min="0.1" max="0.99" step="0.01" value="0.5" />
+      </div>
+
+    </div>
+  </aside>
+  <div id="settings-overlay" class="settings-overlay hidden"></div>
+
+  <!-- ======================================================
+       MAIN APP WRAPPER
+  ====================================================== -->
+  <div id="app" class="app-wrapper">
+
+    <!-- ============ HEADER ============ -->
+    <header class="app-header glass" role="banner">
+      <div class="header-left">
+        <div class="logo-block">
+          <div class="logo-icon" aria-hidden="true">
+            <div class="logo-ring ring-1"></div>
+            <div class="logo-ring ring-2"></div>
+            <div class="logo-core">AI</div>
+          </div>
+          <div class="logo-text">
+            <span class="logo-title">Human Tracker</span>
+            <span class="logo-sub">Infinity Intelligence v2.0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="status-pill" id="system-status">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Initializing…</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="header-time-block">
+          <span id="live-clock" class="mono clock"></span>
+          <span id="live-date" class="date-label"></span>
+        </div>
+        <button class="icon-btn glow-btn" id="btn-settings" aria-label="Open settings" title="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <button class="icon-btn glow-btn" id="btn-fullscreen" aria-label="Toggle fullscreen" title="Fullscreen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="main-grid" role="main">
+
+      <!-- ===== LEFT: CAMERA COLUMN ===== -->
+      <section class="camera-column" aria-label="Camera feed">
+
+        <!-- Camera Feed Card -->
+        <div class="card glass camera-card" id="camera-card">
+          <div class="card-header">
+            <span class="card-title">
+              <span class="card-icon">◉</span> Live Feed
+            </span>
+            <div class="camera-controls">
+              <button class="ctrl-btn" id="btn-switch-cam" title="Switch Camera">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+              </button>
+              <button class="ctrl-btn" id="btn-mirror" title="Mirror">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-2 2 2 2M19 7l2 2-2 2"/></svg>
+              </button>
+              <button class="ctrl-btn" id="btn-zoom-in" title="Zoom In">＋</button>
+              <button class="ctrl-btn" id="btn-zoom-out" title="Zoom Out">－</button>
+              <button class="ctrl-btn" id="btn-cam-fullscreen" title="Fullscreen Preview">⤢</button>
+            </div>
+          </div>
+          <div class="video-wrapper" id="video-wrapper">
+            <!-- Start overlay -->
+            <div class="start-overlay" id="start-overlay">
+              <div class="start-icon">◉</div>
+              <div class="start-title">AI Human Tracker</div>
+              <div class="start-sub">Click below to activate camera & AI</div>
+              <button class="start-btn glow-btn" id="btn-start-camera">
+                <span>Activate Camera</span>
+                <span class="start-btn-arrow">→</span>
+              </button>
+            </div>
+            <video id="webcam" autoplay playsinline muted></video>
+            <canvas id="overlay-canvas"></canvas>
+            <!-- FPS counter -->
+            <div class="fps-counter" id="fps-counter">0 FPS</div>
+            <!-- Recording indicator -->
+            <div class="rec-indicator hidden" id="rec-indicator">
+              <span class="rec-dot"></span> REC
+            </div>
+            <!-- Scan line effect -->
+            <div class="scan-line" aria-hidden="true"></div>
+            <!-- Corner decorations -->
+            <div class="corner top-left" aria-hidden="true"></div>
+            <div class="corner top-right" aria-hidden="true"></div>
+            <div class="corner bottom-left" aria-hidden="true"></div>
+            <div class="corner bottom-right" aria-hidden="true"></div>
+          </div>
+
+          <!-- Camera action bar -->
+          <div class="camera-action-bar">
+            <button class="action-btn danger-btn" id="btn-stop-camera" disabled>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+              Stop
+            </button>
+            <button class="action-btn" id="btn-screenshot" disabled>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Screenshot
+            </button>
+            <button class="action-btn record-btn" id="btn-record" disabled>
+              <span class="rec-btn-dot"></span>
+              Record
+            </button>
+            <select class="cam-select" id="cam-select" aria-label="Select camera"></select>
+          </div>
+        </div>
+
+        <!-- Screenshot Preview -->
+        <div class="card glass screenshot-card hidden" id="screenshot-card">
+          <div class="card-header">
+            <span class="card-title"><span class="card-icon">📷</span> Screenshot</span>
+            <button class="icon-btn" id="btn-close-screenshot">✕</button>
+          </div>
+          <img id="screenshot-preview" src="" alt="Screenshot preview" />
+          <div class="screenshot-actions">
+            <button class="action-btn" id="btn-download-screenshot">⬇ Download</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===== RIGHT: DASHBOARD COLUMN ===== -->
+      <section class="dashboard-column" aria-label="AI Dashboard">
+
+        <!-- STATUS CARDS GRID -->
+        <div class="status-grid">
+          <div class="stat-card glass" id="card-camera">
+            <div class="stat-icon camera-icon">◉</div>
+            <div class="stat-info">
+              <div class="stat-label">Camera</div>
+              <div class="stat-value" id="stat-camera">Offline</div>
+            </div>
+            <div class="stat-badge" id="badge-camera">OFF</div>
+          </div>
+          <div class="stat-card glass" id="card-ai">
+            <div class="stat-icon ai-icon">⬡</div>
+            <div class="stat-info">
+              <div class="stat-label">AI Engine</div>
+              <div class="stat-value" id="stat-ai">Loading</div>
+            </div>
+            <div class="stat-badge" id="badge-ai">...</div>
+          </div>
+          <div class="stat-card glass" id="card-faces">
+            <div class="stat-icon face-icon">☻</div>
+            <div class="stat-info">
+              <div class="stat-label">Faces</div>
+              <div class="stat-value" id="stat-faces">0</div>
+            </div>
+            <div class="stat-badge" id="badge-faces">—</div>
+          </div>
+          <div class="stat-card glass" id="card-motion">
+            <div class="stat-icon motion-icon">⚡</div>
+            <div class="stat-info">
+              <div class="stat-label">Motion</div>
+              <div class="stat-value" id="stat-motion">—</div>
+            </div>
+            <div class="stat-badge" id="badge-motion">—</div>
+          </div>
+          <div class="stat-card glass" id="card-pose">
+            <div class="stat-icon pose-icon">⬟</div>
+            <div class="stat-info">
+              <div class="stat-label">Pose</div>
+              <div class="stat-value" id="stat-pose">—</div>
+            </div>
+            <div class="stat-badge" id="badge-pose">—</div>
+          </div>
+          <div class="stat-card glass" id="card-hands">
+            <div class="stat-icon hand-icon">✋</div>
+            <div class="stat-info">
+              <div class="stat-label">Hands</div>
+              <div class="stat-value" id="stat-hands">0</div>
+            </div>
+            <div class="stat-badge" id="badge-hands">—</div>
+          </div>
+        </div>
+
+        <!-- SYSTEM INFO ROW -->
+        <div class="info-row">
+          <div class="info-chip glass"><span class="info-label">FPS</span><span class="info-val mono" id="info-fps">—</span></div>
+          <div class="info-chip glass"><span class="info-label">CPU</span><span class="info-val mono" id="info-cpu">—</span></div>
+          <div class="info-chip glass"><span class="info-label">RES</span><span class="info-val mono" id="info-res">—</span></div>
+          <div class="info-chip glass"><span class="info-label">BROWSER</span><span class="info-val mono" id="info-browser">—</span></div>
+        </div>
+
+        <!-- FACE ANALYSIS PANEL -->
+        <div class="card glass analysis-card" id="face-analysis-card">
+          <div class="card-header">
+            <span class="card-title"><span class="card-icon">◈</span> Face Analysis</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div id="face-analysis-content" class="face-analysis-content">
+            <div class="no-data-msg" id="face-no-data">No face detected</div>
+          </div>
+        </div>
+
+        <!-- HAND STATUS PANEL -->
+        <div class="card glass hand-card">
+          <div class="card-header">
+            <span class="card-title"><span class="card-icon">✋</span> Hand Status</span>
+          </div>
+          <div class="hand-status-grid" id="hand-status-grid">
+            <div class="hand-item" id="hand-left">
+              <div class="hand-label">Left Hand</div>
+              <div class="hand-icon-wrap">✋</div>
+              <div class="hand-state" id="hand-left-state">Not Detected</div>
+            </div>
+            <div class="hand-divider"></div>
+            <div class="hand-item" id="hand-right">
+              <div class="hand-label">Right Hand</div>
+              <div class="hand-icon-wrap" style="transform: scaleX(-1)">✋</div>
+              <div class="hand-state" id="hand-right-state">Not Detected</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MOTION PANEL -->
+        <div class="card glass motion-card">
+          <div class="card-header">
+            <span class="card-title"><span class="card-icon">⚡</span> Motion Detection</span>
+          </div>
+          <div class="motion-content">
+            <div class="motion-status-row">
+              <div class="motion-indicator" id="motion-indicator">
+                <div class="motion-ring"></div>
+                <div class="motion-label" id="motion-label">No Motion</div>
+              </div>
+              <div class="motion-intensity">
+                <div class="intensity-label">Intensity</div>
+                <div class="intensity-bar-wrap">
+                  <div class="intensity-bar" id="intensity-bar"></div>
+                </div>
+                <div class="intensity-val mono" id="intensity-val">0%</div>
+              </div>
+            </div>
+            <div class="motion-history" id="motion-history" aria-label="Motion history"></div>
+          </div>
+        </div>
+
+        <!-- RECORDING PANEL -->
+        <div class="card glass recording-card">
+          <div class="card-header">
+            <span class="card-title"><span class="card-icon">⏺</span> Recording</span>
+            <span class="rec-timer mono hidden" id="rec-timer">00:00</span>
+          </div>
+          <div class="recording-controls">
+            <button class="rec-action-btn start-rec" id="btn-start-rec" disabled>
+              <span class="rec-dot-lg"></span> Start Recording
+            </button>
+            <button class="rec-action-btn stop-rec hidden" id="btn-stop-rec">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+              Stop & Save
+            </button>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- ============ EVENT LOG ============ -->
+    <section class="log-section glass" aria-label="Event log">
+      <div class="log-header">
+        <span class="card-title"><span class="card-icon">▤</span> Event Log</span>
+        <button class="icon-btn" id="btn-clear-log" title="Clear log">Clear</button>
+      </div>
+      <div class="log-body" id="log-body" role="log" aria-live="polite">
+        <div class="log-entry log-info">
+          <span class="log-time mono">--:--:--</span>
+          <span class="log-msg">System initialized. Waiting for camera activation…</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="app-footer" role="contentinfo">
+      <span>AI Human Tracker © 2025 Infinity Intelligence</span>
+      <span class="footer-divider">|</span>
+      <span>Powered by MediaPipe · TensorFlow.js</span>
+      <span class="footer-divider">|</span>
+      <span id="footer-model-status">Model: Loading…</span>
+    </footer>
+
+  </div><!-- /app-wrapper -->
+
+  <!-- ======================================================
+       SCRIPTS (ES6 modules)
+  ====================================================== -->
+  <script type="module" src="script.js"></script>
+</body>
+</html>

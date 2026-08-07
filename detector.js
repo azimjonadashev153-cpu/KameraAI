@@ -1,0 +1,218 @@
+/**
+ * detector.js — AI Orchestrator: manages all detectors, renders overlays, updates UI
+ * Coordinates FaceDetector, PoseDetector, HandDetector, MotionDetector
+ * AI Human Tracker · Infinity Intelligence
+ */
+
+import { AppState, EventBus, syncCanvasToVideo, FPSTracker, $ } from './utils.js';
+import { FaceDetector, FaceRenderer } from './face.js';
+import { PoseDetector, PoseRenderer } from './pose.js';
+import { HandDetector, HandRenderer } from './hands.js';
+import { MotionDetector }             from './motion.js';
+import { Notifications }              from './notifications.js';
+
+// ============================================================
+// AI DETECTION ORCHESTRATOR
+// ============================================================
+export class DetectorOrchestrator {
+  constructor() {
+    this._video        = $('webcam');
+    this._canvas       = $('overlay-canvas');
+    this._ctx          = this._canvas.getContext('2d');
+
+    // Detectors
+    this._faceDetector   = new FaceDetector();
+    this._poseDetector   = new PoseDetector();
+    this._handDetector   = new HandDetector();
+    this._motionDetector = new MotionDetector();
+
+    // Renderers
+    this._faceRenderer = new FaceRenderer(this._canvas);
+    this._poseRenderer = new PoseRenderer(this._canvas);
+    this._handRenderer = new HandRenderer(this._canvas);
+
+    // State
+    this._running    = false;
+    this._raf        = null;
+    this._fpsTracker = new FPSTracker();
+    this._modelsReady= { face: false, pose: false, hands: false };
+
+    // Listen to settings changes
+    this._setupListeners();
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // PUBLIC API
+  // ──────────────────────────────────────────────────────────
+
+  /** Initialize all AI models */
+  async init() {
+    EventBus.emit('ai:loading');
+
+    // Load MediaPipe libraries from CDN
+    await this._loadMediaPipeScripts();
+
+    // Initialize all detectors in parallel
+    const [face, pose, hands] = await Promise.all([
+      this._faceDetector.init(),
+      this._poseDetector.init(),
+      this._handDetector.init()
+    ]);
+
+    this._modelsReady = { face, pose, hands };
+
+    const allReady = face && pose && hands;
+    if (allReady) {
+      AppState.aiReady = true;
+      EventBus.emit('ai:ready');
+      Notifications.success('AI Ready', 'All models loaded successfully');
+      return true;
+    } else {
+      const failed = [];
+      if (!face)  failed.push('Face');
+      if (!pose)  failed.push('Pose');
+      if (!hands) failed.push('Hands');
+      Notifications.warn('AI Partial Load', `${failed.join(', ')} failed. Some features may be unavailable.`);
+      EventBus.emit('ai:partial', { failed });
+      AppState.aiReady = true; // Allow running with partial
+      return false;
+    }
+  }
+
+  /** Start detection loop */
+  start() {
+    if (this._running) return;
+    this._running = true;
+    this._loop();
+  }
+
+  /** Stop detection loop */
+  stop() {
+    this._running = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = null;
+    this._clearCanvas();
+  }
+
+  /** Get canvas for screenshot/recording */
+  get canvas() { return this._canvas; }
+
+  get isRunning() { return this._running; }
+
+  /** Expose detectors for UI access */
+  get faceResults()   { return this._faceDetector.lastResults || []; }
+  get motionHistory() { return this._motionDetector.getHistory(); }
+
+  // ──────────────────────────────────────────────────────────
+  // DETECTION LOOP
+  // ──────────────────────────────────────────────────────────
+
+  async _loop() {
+    if (!this._running) return;
+
+    // Sync canvas size to video
+    syncCanvasToVideo(this._canvas, this._video);
+
+    // Clear previous frame
+    this._clearCanvas();
+
+    // Run all detections in parallel
+    const [faces, pose, hands, motion] = await Promise.all([
+      AppState.settings.faceDetection   && this._modelsReady.face
+        ? this._faceDetector.detect(this._video)
+        : [],
+      AppState.settings.poseDetection   && this._modelsReady.pose
+        ? this._poseDetector.detect(this._video)
+        : null,
+      AppState.settings.handTracking    && this._modelsReady.hands
+        ? this._handDetector.detect(this._video)
+        : [],
+      AppState.settings.motionDetection
+        ? this._motionDetector.detect(this._video)
+        : { detected: false, intensity: 0 }
+    ]);
+
+    // Render overlays (order matters for layering)
+    if (AppState.settings.skeleton && pose) {
+      this._poseRenderer.render(pose, AppState.settings.skeleton, AppState.settings.landmarks);
+    }
+    if (AppState.settings.boundingBoxes && faces?.length > 0) {
+      this._faceRenderer.render(faces, AppState.settings.boundingBoxes, AppState.settings.landmarks);
+    }
+    if (AppState.settings.landmarks && hands?.length > 0) {
+      this._handRenderer.render(hands, AppState.settings.landmarks);
+    }
+
+    // Update FPS
+    const fps = this._fpsTracker.tick();
+    AppState.fps = fps;
+    EventBus.emit('fps:update', { fps });
+
+    // Next frame
+    this._raf = requestAnimationFrame(() => this._loop());
+  }
+
+  _clearCanvas() {
+    this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // MEDIAPIPE CDN LOADER
+  // ──────────────────────────────────────────────────────────
+
+  async _loadMediaPipeScripts() {
+    const scripts = [
+      'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+    ];
+
+    await Promise.all(scripts.map(src => this._loadScript(src)));
+  }
+
+  _loadScript(src) {
+    return new Promise((resolve, reject) => {
+      // Check if already loaded
+      if (document.querySelector(`script[src="${src}"]`)) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src   = src;
+      script.async = true;
+      script.onload  = () => resolve();
+      script.onerror = () => {
+        console.warn('Failed to load script:', src);
+        resolve(); // Continue even if one fails
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // SETTINGS LISTENER
+  // ──────────────────────────────────────────────────────────
+
+  _setupListeners() {
+    // Listen for confidence slider changes
+    EventBus.on('settings:confidence', ({ value }) => {
+      this._faceDetector.updateConfidence?.(value);
+      // Note: Pose and Hands confidence set at init only (MediaPipe limitation)
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // CLEANUP
+  // ──────────────────────────────────────────────────────────
+
+  destroy() {
+    this.stop();
+    this._faceDetector.destroy?.();
+    this._poseDetector.destroy?.();
+    this._handDetector.destroy?.();
+  }
+}

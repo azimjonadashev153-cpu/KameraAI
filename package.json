@@ -1,0 +1,22 @@
+{
+  "name": "ai-human-tracker",
+  "version": "2.0.0",
+  "description": "AI Human Face & Motion Tracker - Real-time AI-powered detection system",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server -p 8000 -o",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "ai",
+    "face-detection",
+    "pose-detection",
+    "hand-tracking",
+    "motion-detection",
+    "mediapipe",
+    "computer-vision",
+    "webrtc"
+  ],
+  "author": "Infinity Intelligence",
+  "license": "MIT"
+}
