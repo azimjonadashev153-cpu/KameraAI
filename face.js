@@ -1,5 +1,17 @@
 /**
- * face.js — Face detection + landmarks via TF.js face-landmarks-detection
+ * face.js — stub (detection handled by motion trails)
+ */
+import { AppState, EventBus, roundRect, drawLabel, clamp } from './utils.js';
+export class FaceRenderer { constructor(canvas){} render(){} }
+export class FaceDetector {
+  constructor(){ this._ready=false; this._lastResults=[]; }
+  async init(){ return false; }
+  async detect(){ return []; }
+  updateConfidence(){}
+  get isReady(){ return false; }
+  get lastResults(){ return this._lastResults; }
+  destroy(){}
+}
  * No WASM conflict — pure TF.js WebGL backend
  * AI Human Tracker · Infinity Intelligence
  */

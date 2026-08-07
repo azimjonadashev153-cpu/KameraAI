@@ -1,5 +1,29 @@
 /**
- * pose.js — Realistic anatomical skeleton using TensorFlow.js MoveNet
+ * pose.js — SkeletonMode enum (placeholder, trails handled by motion.js)
+ */
+import { AppState, EventBus } from './utils.js';
+
+export const SkeletonMode = {
+  NONE:  'none',
+  HEAD:  'head',
+  HANDS: 'hands',
+  FULL:  'full'
+};
+
+export class PoseRenderer {
+  constructor(canvas) { this._canvas = canvas; }
+  setInputSize(w, h) {}
+  render() {}
+}
+
+export class PoseDetector {
+  constructor() { this._ready = false; this._results = []; }
+  async init() { return false; }
+  async detect() { return []; }
+  get isReady()    { return false; }
+  get lastResults(){ return []; }
+  destroy() {}
+}
  * Bone ivory/cream color, 3D depth, smooth interpolation
  * Modes: head | hands | full | none
  * Multi-person: 1 / 2 / 3

@@ -1,5 +1,20 @@
 /**
- * hands.js — Hand tracking via TF.js hand-pose-detection (MediaPipe Hands model)
+ * hands.js — stub (hand trails handled by motion.js)
+ */
+import { AppState, EventBus } from './utils.js';
+export class HandRenderer {
+  constructor(canvas){ this._canvas=canvas; this._inW=1; this._inH=1; }
+  render(){}
+  setInputSize(w,h){ this._inW=w; this._inH=h; }
+}
+export class HandDetector {
+  constructor(){ this._ready=false; this._results=[]; }
+  async init(){ return false; }
+  async detect(){ return []; }
+  get isReady(){ return false; }
+  get lastResults(){ return this._results; }
+  destroy(){}
+}
  * No WASM conflict — runs in TF.js WebGL backend
  * AI Human Tracker · Infinity Intelligence
  */
