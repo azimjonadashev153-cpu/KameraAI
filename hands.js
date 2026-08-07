@@ -1,70 +1,44 @@
 /**
- * hands.js — Hand tracking, landmark rendering, gesture detection
- * Uses MediaPipe Hands via CDN
+ * hands.js — Hand tracking via TF.js hand-pose-detection (MediaPipe Hands model)
+ * No WASM conflict — runs in TF.js WebGL backend
  * AI Human Tracker · Infinity Intelligence
  */
 
-import { AppState, EventBus, clamp } from './utils.js';
+import { AppState, EventBus } from './utils.js';
 
-// ============================================================
-// HAND CONNECTIONS (21 landmarks per hand)
-// ============================================================
-const HAND_CONNECTIONS = [
-  [0,1],[1,2],[2,3],[3,4],       // Thumb
-  [0,5],[5,6],[6,7],[7,8],       // Index
-  [5,9],[9,10],[10,11],[11,12],  // Middle
-  [9,13],[13,14],[14,15],[15,16],// Ring
+// TF.js hand-pose-detection keypoints (21 per hand)
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],        // Thumb
+  [0,5],[5,6],[6,7],[7,8],        // Index
+  [5,9],[9,10],[10,11],[11,12],   // Middle
+  [9,13],[13,14],[14,15],[15,16], // Ring
   [13,17],[17,18],[18,19],[19,20],// Pinky
-  [0,17]                          // Palm edge
+  [0,17]                          // Palm
 ];
 
-// Finger tip indices
-const FINGERTIPS = [4, 8, 12, 16, 20];
-// Finger base (MCP) indices
-const FINGER_MCP = [2, 5, 9, 13, 17];
+const TIPS = [4, 8, 12, 16, 20];
+const MCP  = [2, 5, 9, 13, 17];
 
-// Colors per hand
-const HAND_COLORS = {
-  Left:  { primary: '#34d399', glow: 'rgba(52,211,153,0.6)' },
-  Right: { primary: '#818cf8', glow: 'rgba(129,140,248,0.6)' }
+const COLORS = {
+  Left:  { line: 'rgba(52,211,153,0.9)',  glow: 'rgba(52,211,153,0.5)'  },
+  Right: { line: 'rgba(129,140,248,0.9)', glow: 'rgba(129,140,248,0.5)' }
 };
 
-// ============================================================
-// GESTURE DETECTION — basic gestures from landmark geometry
-// ============================================================
-function detectGesture(landmarks) {
-  if (!landmarks || landmarks.length < 21) return 'Hand Detected';
-
-  // Check if fingers are extended by comparing tip y vs MCP y
-  const fingers = [1,2,3,4].map(i => {
-    const tip = landmarks[FINGERTIPS[i]];
-    const mcp = landmarks[FINGER_MCP[i]];
-    return tip.y < mcp.y; // y decreases upward in image coords
-  });
-
-  // Thumb: compare x instead (horizontal extension)
-  const thumbExtended = Math.abs(landmarks[4].x - landmarks[2].x) > 0.06;
-  const allExtended   = fingers.every(Boolean) && thumbExtended;
-  const noneExtended  = fingers.every(f => !f) && !thumbExtended;
-  const fistClosed    = noneExtended;
-  const openHand      = allExtended;
-  const indexPoint    = fingers[1] && !fingers[0] && !fingers[2] && !fingers[3];
-  const peace         = fingers[1] && fingers[2] && !fingers[0] && !fingers[3];
-  const thumbsUp      = thumbExtended && !fingers[1] && !fingers[2] && !fingers[3] && !fingers[0];
-  const okSign        = !fingers[1] && fingers[2] && fingers[3] && thumbExtended;
-
-  if (openHand)   return 'Open Hand ✋';
-  if (fistClosed) return 'Fist ✊';
-  if (indexPoint) return 'Pointing ☝';
-  if (peace)      return 'Peace ✌';
-  if (thumbsUp)   return 'Thumbs Up 👍';
-  if (okSign)     return 'OK 👌';
-  return 'Hand Detected';
+function detectGesture(kps) {
+  if (!kps || kps.length < 21) return 'Hand';
+  const fingers = [1,2,3,4].map(i =>
+    kps[TIPS[i]].y < kps[MCP[i]].y
+  );
+  const thumbOut = Math.abs(kps[4].x - kps[2].x) > 30;
+  if (fingers.every(Boolean) && thumbOut)     return 'Open ✋';
+  if (fingers.every(f => !f) && !thumbOut)    return 'Fist ✊';
+  if (fingers[1] && !fingers[0] && !fingers[2] && !fingers[3]) return 'Point ☝';
+  if (fingers[1] && fingers[2] && !fingers[0] && !fingers[3])  return 'Peace ✌';
+  if (thumbOut && !fingers[1] && !fingers[2] && !fingers[3])   return 'Thumbs 👍';
+  return 'Hand';
 }
 
-// ============================================================
-// HAND RENDERER
-// ============================================================
+// ── RENDERER ─────────────────────────────────────────────────
 export class HandRenderer {
   constructor(canvas) {
     this._canvas = canvas;
@@ -72,170 +46,146 @@ export class HandRenderer {
     this._phase  = 0;
   }
 
-  /**
-   * Render all detected hands.
-   * @param {Array} hands  - Array of { landmarks, handedness } objects
-   * @param {boolean} showLandmarks
-   */
-  render(hands, showLandmarks) {
-    if (!hands || hands.length === 0) return;
+  render(hands, _showLandmarks) {
+    if (!hands?.length) return;
     this._phase = (this._phase + 0.06) % (Math.PI * 2);
-
-    hands.forEach(hand => {
-      const { landmarks, handedness } = hand;
-      const side   = handedness || 'Right';
-      const colors = HAND_COLORS[side] || HAND_COLORS.Right;
-      this._drawHand(landmarks, colors);
-    });
+    const pulse = 0.7 + 0.3 * Math.sin(this._phase);
+    hands.forEach(h => this._drawHand(h, pulse));
   }
 
-  _drawHand(landmarks, colors) {
-    const ctx = this._ctx;
-    const cw  = this._canvas.width;
-    const ch  = this._canvas.height;
-    const px  = lm => ({ x: lm.x * cw, y: lm.y * ch });
-    const pulse = 0.6 + 0.4 * Math.sin(this._phase);
+  _drawHand(hand, pulse) {
+    const ctx    = this._ctx;
+    const cw     = this._canvas.width;
+    const ch     = this._canvas.height;
+    const kps    = hand.keypoints;
+    const side   = hand.handedness || 'Right';
+    const colors = COLORS[side] || COLORS.Right;
+
+    const xy = k => {
+      // TF.js hand-pose-detection returns pixel coords
+      // relative to the input image size
+      const sx = this._inW > 0 ? cw / this._inW : 1;
+      const sy = this._inH > 0 ? ch / this._inH : 1;
+      return { x: k.x * sx, y: k.y * sy };
+    };
 
     // Draw connections
-    HAND_CONNECTIONS.forEach(([i, j]) => {
-      const pa = px(landmarks[i]);
-      const pb = px(landmarks[j]);
-
-      ctx.beginPath();
-      ctx.moveTo(pa.x, pa.y);
-      ctx.lineTo(pb.x, pb.y);
-      ctx.strokeStyle = colors.primary;
-      ctx.lineWidth   = 2;
-      ctx.shadowColor = colors.glow;
-      ctx.shadowBlur  = 8;
-      ctx.lineCap     = 'round';
-      ctx.stroke();
+    CONNECTIONS.forEach(([a, b]) => {
+      const pa = xy(kps[a]), pb = xy(kps[b]);
+      // Glow
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      ctx.strokeStyle = colors.glow; ctx.lineWidth = 8;
+      ctx.lineCap = 'round'; ctx.filter = 'blur(4px)'; ctx.stroke(); ctx.restore();
+      // Line
+      ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      ctx.strokeStyle = colors.line; ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round'; ctx.stroke();
     });
-    ctx.shadowBlur = 0;
 
     // Draw joints
-    landmarks.forEach((lm, i) => {
-      const p    = px(lm);
-      const isTip = FINGERTIPS.includes(i);
+    kps.forEach((k, i) => {
+      const p    = xy(k);
+      const isTip = TIPS.includes(i);
       const r    = isTip ? 5 : 3;
 
-      // Outer glow ring on fingertips
       if (isTip) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = `${colors.primary}${Math.round(pulse * 80).toString(16).padStart(2,'0')}`;
-        ctx.lineWidth   = 1;
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = `${colors.line.replace('0.9)', `${0.3 * pulse})`)}`;
+        ctx.lineWidth = 1; ctx.stroke();
       }
 
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle   = isTip ? '#fff' : colors.primary;
-      ctx.shadowColor = colors.glow;
-      ctx.shadowBlur  = isTip ? 12 : 6;
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = isTip ? '#fff' : colors.line;
+      ctx.shadowColor = colors.glow; ctx.shadowBlur = isTip ? 12 : 5;
+      ctx.fill(); ctx.shadowBlur = 0;
     });
-    ctx.shadowBlur = 0;
 
-    // Wrist label
-    const wrist = px(landmarks[0]);
+    // Gesture label
+    const wrist = xy(kps[0]);
     ctx.save();
-    ctx.font      = 'bold 11px Inter, sans-serif';
-    ctx.fillStyle = colors.primary;
-    ctx.textAlign = 'center';
-    ctx.shadowColor= colors.glow;
-    ctx.shadowBlur = 8;
-    ctx.fillText('HAND', wrist.x, wrist.y + 16);
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.fillStyle = colors.line; ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8;
+    ctx.fillText(hand.gesture || side, wrist.x, wrist.y + 20);
     ctx.restore();
   }
+
+  setInputSize(w, h) { this._inW = w; this._inH = h; }
 }
 
-// ============================================================
-// HAND DETECTOR ENGINE
-// ============================================================
+// ── DETECTOR ─────────────────────────────────────────────────
 export class HandDetector {
   constructor() {
-    this._hands     = null;
+    this._detector  = null;
     this._ready     = false;
     this._results   = [];
     this._prevCount = 0;
+    this._inW = 0; this._inH = 0;
   }
 
   async init() {
-    return new Promise((resolve) => {
-      try {
-        const hands = new window.Hands({
-          locateFile: (file) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
-        });
-
-        hands.setOptions({
-          maxNumHands:             2,
-          modelComplexity:         1,
-          minDetectionConfidence:  AppState.settings.confidence,
-          minTrackingConfidence:   0.5
-        });
-
-        hands.onResults((results) => this._onResults(results));
-
-        hands.initialize().then(() => {
-          this._hands = hands;
-          this._ready = true;
-          resolve(true);
-        }).catch(err => {
-          console.warn('Hands init failed:', err);
-          resolve(false);
-        });
-
-      } catch (err) {
-        console.warn('Hands not available:', err);
-        resolve(false);
-      }
-    });
-  }
-
-  async detect(videoElement) {
-    if (!this._ready || !this._hands) return [];
     try {
-      await this._hands.send({ image: videoElement });
-    } catch (e) { /* skip */ }
-    return this._results;
-  }
+      if (!window.handPoseDetection || !window.tf) {
+        console.warn('hand-pose-detection not loaded');
+        return false;
+      }
 
-  _onResults(results) {
-    const multiLandmarks  = results.multiHandLandmarks  || [];
-    const multiHandedness = results.multiHandedness     || [];
+      const model   = window.handPoseDetection.SupportedModels.MediaPipeHands;
+      const config  = {
+        runtime: 'tfjs',
+        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4',
+        modelType: 'full',
+        maxHands: 2,
+        minHandDetectionConfidence: AppState.settings.confidence,
+        minHandPresenceConfidence:  0.5,
+        minTrackingConfidence:      0.5,
+      };
 
-    this._results = multiLandmarks.map((lm, i) => ({
-      landmarks:  lm,
-      handedness: multiHandedness[i]?.label || 'Right',
-      score:      multiHandedness[i]?.score || 0.9,
-      gesture:    detectGesture(lm)
-    }));
-
-    const count = this._results.length;
-    AppState.handCount = count;
-
-    if (count !== this._prevCount) {
-      EventBus.emit('hands:update', { count, hands: this._results });
-      this._prevCount = count;
+      this._detector = await window.handPoseDetection.createDetector(model, config);
+      this._ready    = true;
+      return true;
+    } catch (e) {
+      console.warn('Hand detector init failed:', e);
+      return false;
     }
   }
 
-  /** Get detected hand sides as a set: 'Left', 'Right', 'Both', 'None' */
-  get handSides() {
-    const sides = new Set(this._results.map(h => h.handedness));
-    if (sides.size === 0)    return 'None';
-    if (sides.size === 2)    return 'Both';
-    return [...sides][0];
+  async detect(video) {
+    if (!this._ready || !this._detector) return [];
+    if (!video || video.readyState < 2)    return [];
+    try {
+      const hands = await this._detector.estimateHands(video, {
+        flipHorizontal: false
+      });
+
+      this._inW = video.videoWidth;
+      this._inH = video.videoHeight;
+
+      this._results = (hands || []).map(h => ({
+        keypoints:  h.keypoints,
+        handedness: h.handedness,
+        score:      h.score,
+        gesture:    detectGesture(h.keypoints)
+      }));
+
+      const count = this._results.length;
+      AppState.handCount = count;
+
+      if (count !== this._prevCount) {
+        EventBus.emit('hands:update', { count, hands: this._results });
+        this._prevCount = count;
+      }
+    } catch (e) { /* skip frame */ }
+    return this._results;
   }
 
   get isReady()    { return this._ready; }
   get lastResults(){ return this._results; }
 
   destroy() {
-    if (this._hands) this._hands.close?.();
-    this._hands = null;
-    this._ready = false;
+    this._detector?.dispose?.();
+    this._detector = null;
+    this._ready    = false;
   }
 }

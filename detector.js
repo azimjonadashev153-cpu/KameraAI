@@ -1,6 +1,7 @@
 /**
- * detector.js — AI Orchestrator: manages all detectors, renders overlays, updates UI
- * Coordinates FaceDetector, PoseDetector, HandDetector, MotionDetector
+ * detector.js — AI Orchestrator using ONLY TensorFlow.js
+ * MoveNet (pose) + MediaPipe Hands model via TF.js + FaceMesh via TF.js
+ * Zero WASM conflict — all models run in the same TF.js WebGL backend
  * AI Human Tracker · Infinity Intelligence
  */
 
@@ -8,243 +9,173 @@ import { AppState, EventBus, syncCanvasToVideo, FPSTracker, $ } from './utils.js
 import { FaceDetector, FaceRenderer } from './face.js';
 import { PoseDetector, PoseRenderer, SkeletonMode } from './pose.js';
 import { HandDetector, HandRenderer } from './hands.js';
-import { MotionDetector }             from './motion.js';
-import { Notifications }              from './notifications.js';
+import { MotionDetector } from './motion.js';
+import { Notifications }  from './notifications.js';
 
-// ============================================================
-// AI DETECTION ORCHESTRATOR
-// ============================================================
 export class DetectorOrchestrator {
   constructor() {
-    this._video        = $('webcam');
-    this._canvas       = $('overlay-canvas');
-    this._ctx          = this._canvas.getContext('2d');
+    this._video   = $('webcam');
+    this._canvas  = $('overlay-canvas');
+    this._ctx     = this._canvas.getContext('2d');
 
-    // Detectors
     this._faceDetector   = new FaceDetector();
     this._poseDetector   = new PoseDetector();
     this._handDetector   = new HandDetector();
     this._motionDetector = new MotionDetector();
 
-    // Renderers
     this._faceRenderer = new FaceRenderer(this._canvas);
     this._poseRenderer = new PoseRenderer(this._canvas);
     this._handRenderer = new HandRenderer(this._canvas);
 
-    // State
-    this._running    = false;
-    this._raf        = null;
-    this._fpsTracker = new FPSTracker();
-    this._modelsReady= { face: false, pose: false, hands: false };
+    this._running     = false;
+    this._raf         = null;
+    this._fpsTracker  = new FPSTracker();
+    this._modelsReady = { face: false, pose: false, hands: false };
 
-    // Skeleton & tracking settings — default NONE (no skeleton until user picks)
-    this.skeletonMode = SkeletonMode.NONE;  // 'none' | 'head' | 'hands' | 'full'
-    this.maxPersons   = 1;                  // 1 | 2 | 3
+    this.skeletonMode = SkeletonMode.NONE;
+    this.maxPersons   = 1;
 
-    // Listen to settings changes
-    this._setupListeners();
+    EventBus.on('settings:confidence', ({ value }) => {
+      AppState.settings.confidence = value;
+    });
   }
 
-  // ──────────────────────────────────────────────────────────
-  // PUBLIC API
-  // ──────────────────────────────────────────────────────────
+  // ── PUBLIC API ─────────────────────────────────────────────
 
-  /** Initialize all AI models */
   async init() {
     EventBus.emit('ai:loading');
 
-    // Load MediaPipe libraries from CDN
-    await this._loadMediaPipeScripts();
+    // Wait for TF.js to be available (loaded via script tag)
+    await this._waitForTF();
 
-    // Initialize all detectors in parallel
-    const [face, pose, hands] = await Promise.all([
-      this._faceDetector.init(),
+    // Set WebGL backend
+    try {
+      await window.tf.setBackend('webgl');
+      await window.tf.ready();
+    } catch (e) {
+      console.warn('WebGL backend failed, using cpu:', e);
+      await window.tf.setBackend('cpu');
+      await window.tf.ready();
+    }
+
+    // Init all detectors
+    const [pose, hands, face] = await Promise.all([
       this._poseDetector.init(),
-      this._handDetector.init()
+      this._handDetector.init(),
+      this._faceDetector.init(),
     ]);
 
-    this._modelsReady = { face, pose, hands };
+    this._modelsReady = { pose, hands, face };
 
-    const allReady = face && pose && hands;
-    if (allReady) {
-      AppState.aiReady = true;
+    AppState.aiReady = true;
+    const failed = [];
+    if (!pose)  failed.push('Pose');
+    if (!hands) failed.push('Hands');
+    if (!face)  failed.push('Face');
+
+    if (failed.length === 0) {
       EventBus.emit('ai:ready');
-      Notifications.success('AI Ready', 'All models loaded successfully');
-      return true;
+      Notifications.success('AI Ready', 'All models loaded!');
     } else {
-      const failed = [];
-      if (!face)  failed.push('Face');
-      if (!pose)  failed.push('Pose');
-      if (!hands) failed.push('Hands');
-      Notifications.warn('AI Partial Load', `${failed.join(', ')} failed. Some features may be unavailable.`);
       EventBus.emit('ai:partial', { failed });
-      AppState.aiReady = true; // Allow running with partial
-      return false;
+      Notifications.warn('AI Partial', `${failed.join(', ')} unavailable`);
     }
+
+    return failed.length === 0;
   }
 
-  /** Start detection loop */
   start() {
     if (this._running) return;
     this._running = true;
     this._loop();
   }
 
-  /** Stop detection loop */
   stop() {
     this._running = false;
     if (this._raf) cancelAnimationFrame(this._raf);
     this._raf = null;
-    this._clearCanvas();
+    this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
-  /** Get canvas for screenshot/recording */
-  get canvas() { return this._canvas; }
+  get canvas()       { return this._canvas; }
+  get isRunning()    { return this._running; }
+  get faceResults()  { return this._faceDetector.lastResults || []; }
+  get motionHistory(){ return this._motionDetector.getHistory(); }
 
-  get isRunning() { return this._running; }
-
-  /** Expose detectors for UI access */
-  get faceResults()   { return this._faceDetector.lastResults || []; }
-  get motionHistory() { return this._motionDetector.getHistory(); }
-
-  // ──────────────────────────────────────────────────────────
-  // DETECTION LOOP
-  // ──────────────────────────────────────────────────────────
+  // ── DETECTION LOOP ─────────────────────────────────────────
 
   async _loop() {
     if (!this._running) return;
 
-    // Sync canvas size to video
     syncCanvasToVideo(this._canvas, this._video);
+    this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
-    // Clear previous frame
-    this._clearCanvas();
+    const runPose  = this.skeletonMode !== SkeletonMode.NONE && this._modelsReady.pose;
+    const runHands = AppState.settings.handTracking  && this._modelsReady.hands;
+    const runFace  = AppState.settings.faceDetection && this._modelsReady.face;
 
-    // Run all detections in parallel
-    const [faces, pose, hands, motion] = await Promise.all([
-      AppState.settings.faceDetection && this._modelsReady.face
-        ? this._faceDetector.detect(this._video)
-        : Promise.resolve([]),
-      this.skeletonMode !== SkeletonMode.NONE && this._modelsReady.pose
-        ? this._poseDetector.detect(this._video)
-        : Promise.resolve([]),
-      AppState.settings.handTracking && this._modelsReady.hands
-        ? this._handDetector.detect(this._video)
-        : Promise.resolve([]),
-      AppState.settings.motionDetection
-        ? this._motionDetector.detect(this._video)
-        : Promise.resolve({ detected: false, intensity: 0 })
+    const [poses, hands, faces] = await Promise.all([
+      runPose  ? this._poseDetector.detect(this._video) : Promise.resolve([]),
+      runHands ? this._handDetector.detect(this._video) : Promise.resolve([]),
+      runFace  ? this._faceDetector.detect(this._video) : Promise.resolve([]),
     ]);
 
-    // Render overlays (order matters for layering)
-    if (this.skeletonMode !== SkeletonMode.NONE && pose?.length > 0) {
-      // Pass video dimensions so renderer can scale keypoints correctly
+    // Motion (sync — uses offscreen canvas, fast)
+    if (AppState.settings.motionDetection) {
+      this._motionDetector.detect(this._video);
+    }
+
+    // Render
+    if (poses?.length > 0 && this.skeletonMode !== SkeletonMode.NONE) {
       this._poseRenderer.setInputSize(
-        this._video.videoWidth || this._canvas.width,
+        this._video.videoWidth  || this._canvas.width,
         this._video.videoHeight || this._canvas.height
       );
-      this._poseRenderer.render(pose, this.skeletonMode, this.maxPersons);
-    }
-    if (AppState.settings.boundingBoxes && faces?.length > 0) {
-      this._faceRenderer.render(faces, AppState.settings.boundingBoxes, AppState.settings.landmarks);
-    }
-    if (AppState.settings.landmarks && hands?.length > 0) {
-      this._handRenderer.render(hands, AppState.settings.landmarks);
+      this._poseRenderer.render(poses, this.skeletonMode, this.maxPersons);
     }
 
-    // Update FPS
-    const fps = this._fpsTracker.tick();
-    AppState.fps = fps;
-    EventBus.emit('fps:update', { fps });
+    if (faces?.length > 0 && AppState.settings.boundingBoxes) {
+      this._faceRenderer.render(faces, true, AppState.settings.landmarks);
+    }
 
-    // Next frame
+    if (hands?.length > 0) {
+      this._handRenderer.setInputSize(
+        this._video.videoWidth  || this._canvas.width,
+        this._video.videoHeight || this._canvas.height
+      );
+      this._handRenderer.render(hands, true);
+    }
+
+    AppState.fps = this._fpsTracker.tick();
+    EventBus.emit('fps:update', { fps: AppState.fps });
+
     this._raf = requestAnimationFrame(() => this._loop());
   }
 
-  _clearCanvas() {
-    this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
-  }
+  // ── WAIT FOR TF.js ────────────────────────────────────────
 
-  // ──────────────────────────────────────────────────────────
-  // MEDIAPIPE CDN LOADER
-  // ──────────────────────────────────────────────────────────
-
-  async _loadMediaPipeScripts() {
-    // Only load Face + Hands — Pose now uses TF.js MoveNet (loaded in index.html)
-    const scripts = [
-      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js'
-    ];
-
-    for (const src of scripts) {
-      await this._loadScript(src);
-    }
-
-    // Wait for TF.js MoveNet to be available
-    await this._waitForTF();
-
-    // Small pause to ensure globals are registered
-    await new Promise(r => setTimeout(r, 500));
-  }
-
-  /** Wait until TF.js and poseDetection are ready */
   _waitForTF() {
     return new Promise(resolve => {
+      let tries = 0;
       const check = () => {
+        tries++;
         if (window.tf && window.poseDetection) {
           resolve();
+        } else if (tries > 100) {
+          console.warn('TF.js not found after 10s');
+          resolve();
         } else {
-          setTimeout(check, 200);
+          setTimeout(check, 100);
         }
       };
       check();
-      // Max wait 10s
-      setTimeout(resolve, 10000);
     });
   }
-
-  _loadScript(src) {
-    return new Promise((resolve) => {
-      // Check if already loaded
-      if (document.querySelector(`script[src="${src}"]`)) {
-        resolve();
-        return;
-      }
-
-      const script    = document.createElement('script');
-      script.src      = src;
-      script.async    = false; // Keep load order
-      script.crossOrigin = 'anonymous';
-      script.onload   = () => resolve();
-      script.onerror  = () => {
-        console.warn('Failed to load MediaPipe script:', src);
-        resolve(); // Continue even if one fails
-      };
-      document.head.appendChild(script);
-    });
-  }
-
-  // ──────────────────────────────────────────────────────────
-  // SETTINGS LISTENER
-  // ──────────────────────────────────────────────────────────
-
-  _setupListeners() {
-    // Listen for confidence slider changes
-    EventBus.on('settings:confidence', ({ value }) => {
-      this._faceDetector.updateConfidence?.(value);
-      // Note: Pose and Hands confidence set at init only (MediaPipe limitation)
-    });
-  }
-
-  // ──────────────────────────────────────────────────────────
-  // CLEANUP
-  // ──────────────────────────────────────────────────────────
 
   destroy() {
     this.stop();
-    this._faceDetector.destroy?.();
     this._poseDetector.destroy?.();
     this._handDetector.destroy?.();
+    this._faceDetector.destroy?.();
   }
 }
