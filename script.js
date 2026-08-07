@@ -290,7 +290,7 @@ class App {
     $('btn-clear-log').addEventListener('click', () => this.logger.clear());
 
     // ── SKELETON MODE BUTTONS ──
-    ['none', 'hands', 'full'].forEach(mode => {
+    ['none', 'head', 'hands', 'full'].forEach(mode => {
       $(`mode-${mode}`).addEventListener('click', () => this._setSkeletonMode(mode));
     });
 
@@ -298,7 +298,6 @@ class App {
     [1, 2, 3].forEach(n => {
       $(`count-${n}`).addEventListener('click', () => this._setPersonCount(n));
     });
-    $('count-all').addEventListener('click', () => this._setPersonCount(Infinity));
   }
 
   _enableButtons() {
@@ -521,13 +520,14 @@ class App {
     this.detector.skeletonMode = mode;
 
     // Update button active states
-    ['none', 'hands', 'full'].forEach(m => {
-      $(`mode-${m}`).classList.toggle('active', m === mode);
+    ['none', 'head', 'hands', 'full'].forEach(m => {
+      const btn = $(`mode-${m}`);
+      if (btn) btn.classList.toggle('active', m === mode);
     });
 
     // Update chip on video
     const chip = $('mode-chip');
-    const labels = { none: null, hands: '✋ Hands', full: '⬟ Full Body' };
+    const labels = { none: null, head: '🦷 Head', hands: '✋ Hands', full: '🦴 Full Body' };
     if (mode === 'none') {
       chip.classList.add('hidden');
     } else {
@@ -552,14 +552,10 @@ class App {
     [1, 2, 3].forEach(i => {
       $(`count-${i}`).classList.toggle('active', n === i);
     });
-    $('count-all').classList.toggle('active', n === Infinity);
 
-    // Update label
-    const label = n === Infinity ? 'persons (all)' : n === 1 ? 'person' : 'persons';
+    const label = n === 1 ? 'person' : 'persons';
     $('person-track-label').textContent = label;
-
-    const display = n === Infinity ? 'All' : n;
-    this.logger.log(`Tracking: ${display} ${label}`, 'info');
+    this.logger.log(`Tracking max: ${n} ${label}`, 'info');
   }
 
   // ──────────────────────────────────────────────────────────

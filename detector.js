@@ -37,9 +37,9 @@ export class DetectorOrchestrator {
     this._fpsTracker = new FPSTracker();
     this._modelsReady= { face: false, pose: false, hands: false };
 
-    // Skeleton & tracking settings
-    this.skeletonMode = SkeletonMode.NONE;  // 'none' | 'hands' | 'full'
-    this.maxPersons   = Infinity;           // 1 | 2 | 3 | Infinity
+    // Skeleton & tracking settings — default NONE (no skeleton until user picks)
+    this.skeletonMode = SkeletonMode.NONE;  // 'none' | 'head' | 'hands' | 'full'
+    this.maxPersons   = 1;                  // 1 | 2 | 3
 
     // Listen to settings changes
     this._setupListeners();
