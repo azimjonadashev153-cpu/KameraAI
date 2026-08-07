@@ -216,7 +216,7 @@ export class FaceDetector {
         // MediaPipe FaceMesh loaded via script tag in detector.js
         const faceMesh = new window.FaceMesh({
           locateFile: (file) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`
         });
 
         faceMesh.setOptions({

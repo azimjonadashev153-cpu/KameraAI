@@ -178,6 +178,24 @@
               <button class="ctrl-btn" id="btn-cam-fullscreen" title="Fullscreen Preview">⤢</button>
             </div>
           </div>
+
+          <!-- SKELETON MODE SELECTOR -->
+          <div class="skeleton-mode-bar">
+            <span class="skeleton-mode-label">Skeleton:</span>
+            <button class="mode-btn mode-none active" id="mode-none" title="No skeleton">None</button>
+            <button class="mode-btn mode-hands" id="mode-hands" title="Show hand skeleton only">✋ Hands</button>
+            <button class="mode-btn mode-full" id="mode-full" title="Show full body skeleton">⬟ Full Body</button>
+          </div>
+
+          <!-- PERSON COUNT SELECTOR -->
+          <div class="person-count-bar">
+            <span class="person-count-label">Track:</span>
+            <button class="count-btn active" id="count-1" title="Track 1 person">1</button>
+            <button class="count-btn" id="count-2" title="Track 2 persons">2</button>
+            <button class="count-btn" id="count-3" title="Track 3 persons">3</button>
+            <button class="count-btn all" id="count-all" title="Track all persons">All</button>
+            <span style="font-size:0.65rem;color:var(--text-muted);margin-left:0.5rem" id="person-track-label">person</span>
+          </div>
           <div class="video-wrapper" id="video-wrapper">
             <!-- Start overlay -->
             <div class="start-overlay" id="start-overlay">
@@ -204,6 +222,8 @@
             <div class="corner top-right" aria-hidden="true"></div>
             <div class="corner bottom-left" aria-hidden="true"></div>
             <div class="corner bottom-right" aria-hidden="true"></div>
+            <!-- Skeleton mode chip -->
+            <div class="mode-chip hidden" id="mode-chip">None</div>
           </div>
 
           <!-- Camera action bar -->

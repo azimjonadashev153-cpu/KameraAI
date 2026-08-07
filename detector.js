@@ -6,7 +6,7 @@
 
 import { AppState, EventBus, syncCanvasToVideo, FPSTracker, $ } from './utils.js';
 import { FaceDetector, FaceRenderer } from './face.js';
-import { PoseDetector, PoseRenderer } from './pose.js';
+import { PoseDetector, PoseRenderer, SkeletonMode } from './pose.js';
 import { HandDetector, HandRenderer } from './hands.js';
 import { MotionDetector }             from './motion.js';
 import { Notifications }              from './notifications.js';
@@ -36,6 +36,10 @@ export class DetectorOrchestrator {
     this._raf        = null;
     this._fpsTracker = new FPSTracker();
     this._modelsReady= { face: false, pose: false, hands: false };
+
+    // Skeleton & tracking settings
+    this.skeletonMode = SkeletonMode.NONE;  // 'none' | 'hands' | 'full'
+    this.maxPersons   = Infinity;           // 1 | 2 | 3 | Infinity
 
     // Listen to settings changes
     this._setupListeners();
@@ -133,8 +137,8 @@ export class DetectorOrchestrator {
     ]);
 
     // Render overlays (order matters for layering)
-    if (AppState.settings.skeleton && pose) {
-      this._poseRenderer.render(pose, AppState.settings.skeleton, AppState.settings.landmarks);
+    if (this.skeletonMode !== SkeletonMode.NONE && pose?.length > 0) {
+      this._poseRenderer.render(pose, this.skeletonMode, this.maxPersons);
     }
     if (AppState.settings.boundingBoxes && faces?.length > 0) {
       this._faceRenderer.render(faces, AppState.settings.boundingBoxes, AppState.settings.landmarks);
@@ -161,32 +165,37 @@ export class DetectorOrchestrator {
   // ──────────────────────────────────────────────────────────
 
   async _loadMediaPipeScripts() {
+    // Load sequentially — MediaPipe scripts depend on each other
     const scripts = [
-      'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js'
     ];
 
-    await Promise.all(scripts.map(src => this._loadScript(src)));
+    for (const src of scripts) {
+      await this._loadScript(src);
+    }
+
+    // Small pause to ensure globals are registered
+    await new Promise(r => setTimeout(r, 300));
   }
 
   _loadScript(src) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // Check if already loaded
       if (document.querySelector(`script[src="${src}"]`)) {
         resolve();
         return;
       }
 
-      const script = document.createElement('script');
-      script.src   = src;
-      script.async = true;
-      script.onload  = () => resolve();
-      script.onerror = () => {
-        console.warn('Failed to load script:', src);
+      const script    = document.createElement('script');
+      script.src      = src;
+      script.async    = false; // Keep load order
+      script.crossOrigin = 'anonymous';
+      script.onload   = () => resolve();
+      script.onerror  = () => {
+        console.warn('Failed to load MediaPipe script:', src);
         resolve(); // Continue even if one fails
       };
       document.head.appendChild(script);

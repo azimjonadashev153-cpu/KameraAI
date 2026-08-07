@@ -276,7 +276,7 @@ button {
 /* ======== MAIN GRID ======== */
 .main-grid {
   display: grid;
-  grid-template-columns: 1fr 420px;
+  grid-template-columns: 1fr 380px;
   gap: var(--gap);
   flex: 1;
   min-height: 0;
@@ -1348,7 +1348,136 @@ button {
   .toast { min-width: 240px; }
 }
 
-/* ======== GLOW ANIMATIONS ======== */
+/* ======== SKELETON MODE SELECTOR ======== */
+.skeleton-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: rgba(0,0,0,0.25);
+  border-bottom: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.skeleton-mode-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-right: 0.25rem;
+}
+
+.mode-btn {
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.04);
+  transition: var(--transition);
+  letter-spacing: 0.3px;
+}
+
+.mode-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(0,212,255,0.08);
+}
+
+.mode-btn.active {
+  background: rgba(0,212,255,0.15);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.mode-btn.mode-hands.active {
+  background: rgba(52,211,153,0.15);
+  border-color: #34d399;
+  color: #34d399;
+  box-shadow: 0 0 10px rgba(52,211,153,0.4);
+}
+
+.mode-btn.mode-full.active {
+  background: rgba(168,85,247,0.15);
+  border-color: var(--secondary);
+  color: var(--secondary);
+  box-shadow: 0 0 10px rgba(168,85,247,0.4);
+}
+
+/* Person count selector */
+.person-count-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.person-count-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-right: 0.25rem;
+}
+
+.count-btn {
+  width: 30px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.04);
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.count-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.count-btn.active {
+  background: rgba(0,212,255,0.15);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.count-btn.all.active {
+  background: rgba(168,85,247,0.15);
+  border-color: var(--secondary);
+  color: var(--secondary);
+}
+
+/* Skeleton mode status chip on video */
+.mode-chip {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  z-index: 5;
+  backdrop-filter: blur(8px);
+}
+
+.mode-chip.mode-hands { border-color: #34d399; color: #34d399; }
+.mode-chip.mode-full  { border-color: var(--secondary); color: var(--secondary); }
+
+/* ======== SKELETON MODE SELECTOR END ======== */
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 8px var(--primary-glow); }
   50%       { box-shadow: 0 0 24px var(--primary-glow), 0 0 48px rgba(0,212,255,0.15); }

@@ -1,47 +1,128 @@
 /**
- * pose.js — Full-body pose detection and skeleton rendering
- * Uses MediaPipe Pose via CDN
+ * pose.js — Realistic full-body pose & hand skeleton rendering
+ * Supports: hands-only mode, full-body mode, per-person tracking limit
+ * Smooth, life-like skeleton with proper joint anatomy
  * AI Human Tracker · Infinity Intelligence
  */
 
 import { AppState, EventBus, clamp } from './utils.js';
 
 // ============================================================
-// POSE SKELETON CONNECTIONS
-// Full body: 33 landmarks per MediaPipe Pose
+// SKELETON MODE ENUM
 // ============================================================
-const POSE_CONNECTIONS = [
-  // Face
-  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
-  // Torso
-  [11,12],[11,23],[12,24],[23,24],
-  // Left arm
-  [11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
-  // Right arm
-  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
-  // Left leg
-  [23,25],[25,27],[27,29],[27,31],[29,31],
-  // Right leg
-  [24,26],[26,28],[28,30],[28,32],[30,32]
-];
-
-// Color segments by body region
-const SEGMENT_COLOR = {
-  face:      'rgba(168,85,247,0.7)',
-  torso:     'rgba(0,212,255,0.7)',
-  leftArm:   'rgba(52,211,153,0.7)',
-  rightArm:  'rgba(251,146,60,0.7)',
-  leftLeg:   'rgba(56,189,248,0.7)',
-  rightLeg:  'rgba(244,114,182,0.7)'
+export const SkeletonMode = {
+  NONE:  'none',
+  HANDS: 'hands',
+  FULL:  'full'
 };
 
-function getConnectionColor(i, j) {
-  if ([0,1,2,3,4,5,6,7,8].some(v => v===i||v===j)) return SEGMENT_COLOR.face;
-  if ([11,12,23,24].includes(i) && [11,12,23,24].includes(j)) return SEGMENT_COLOR.torso;
-  if ([11,13,15,17,19,21].some(v=>v===i||v===j)) return SEGMENT_COLOR.leftArm;
-  if ([12,14,16,18,20,22].some(v=>v===i||v===j)) return SEGMENT_COLOR.rightArm;
-  if ([23,25,27,29,31].some(v=>v===i||v===j)) return SEGMENT_COLOR.leftLeg;
-  return SEGMENT_COLOR.rightLeg;
+// ============================================================
+// POSE CONNECTIONS — anatomically correct grouping
+// ============================================================
+
+// Full body connections with body region tags
+const BODY_SEGMENTS = [
+  // HEAD connections (subtle)
+  { pts: [0,1],[1,2],[2,3],[3,7],  region: 'head'  },
+  { pts: [0,4],[4,5],[5,6],[6,8],  region: 'head'  },
+
+  // TORSO — strong center
+  { pts: [11,12],  region: 'torso' },
+  { pts: [11,23],  region: 'torso' },
+  { pts: [12,24],  region: 'torso' },
+  { pts: [23,24],  region: 'torso' },
+
+  // LEFT ARM
+  { pts: [11,13],  region: 'lArm' },
+  { pts: [13,15],  region: 'lArm' },
+  { pts: [15,17],  region: 'lArm' },
+  { pts: [15,19],  region: 'lArm' },
+  { pts: [15,21],  region: 'lArm' },
+  { pts: [17,19],  region: 'lArm' },
+
+  // RIGHT ARM
+  { pts: [12,14],  region: 'rArm' },
+  { pts: [14,16],  region: 'rArm' },
+  { pts: [16,18],  region: 'rArm' },
+  { pts: [16,20],  region: 'rArm' },
+  { pts: [16,22],  region: 'rArm' },
+  { pts: [18,20],  region: 'rArm' },
+
+  // LEFT LEG
+  { pts: [23,25],  region: 'lLeg' },
+  { pts: [25,27],  region: 'lLeg' },
+  { pts: [27,29],  region: 'lLeg' },
+  { pts: [27,31],  region: 'lLeg' },
+  { pts: [29,31],  region: 'lLeg' },
+
+  // RIGHT LEG
+  { pts: [24,26],  region: 'rLeg' },
+  { pts: [26,28],  region: 'rLeg' },
+  { pts: [28,30],  region: 'rLeg' },
+  { pts: [28,32],  region: 'rLeg' },
+  { pts: [30,32],  region: 'rLeg' },
+];
+
+// Flatten for rendering
+const CONNECTIONS = [];
+BODY_SEGMENTS.forEach(seg => {
+  // each entry may have pts as [i,j] directly or as array of pairs
+  if (Array.isArray(seg.pts[0])) {
+    seg.pts.forEach(pair => CONNECTIONS.push({ a: pair[0], b: pair[1], region: seg.region }));
+  } else {
+    CONNECTIONS.push({ a: seg.pts[0], b: seg.pts[1], region: seg.region });
+  }
+});
+
+// Hand-only connections (wrist + arm only from pose landmarks)
+const HAND_CONNECTIONS_POSE = [
+  { a:11, b:13, region:'lArm' },
+  { a:13, b:15, region:'lArm' },
+  { a:12, b:14, region:'rArm' },
+  { a:14, b:16, region:'rArm' },
+];
+
+// Region colors — vibrant, life-like
+const REGION_STYLE = {
+  head:  { stroke: 'rgba(200,200,255,0.5)', glow: 'rgba(200,200,255,0.3)', lw: 1.5 },
+  torso: { stroke: 'rgba(0,212,255,0.85)',  glow: 'rgba(0,212,255,0.5)',   lw: 3   },
+  lArm:  { stroke: 'rgba(52,211,153,0.85)', glow: 'rgba(52,211,153,0.5)',  lw: 2.5 },
+  rArm:  { stroke: 'rgba(251,146,60,0.85)', glow: 'rgba(251,146,60,0.5)',  lw: 2.5 },
+  lLeg:  { stroke: 'rgba(56,189,248,0.85)', glow: 'rgba(56,189,248,0.5)',  lw: 2.5 },
+  rLeg:  { stroke: 'rgba(244,114,182,0.85)',glow: 'rgba(244,114,182,0.5)', lw: 2.5 },
+};
+
+// Key joints to highlight with circles
+const KEY_JOINTS = [11,12,13,14,15,16,23,24,25,26,27,28]; // shoulders, elbows, wrists, hips, knees, ankles
+
+// ============================================================
+// SMOOTH INTERPOLATION — lerp between frames for fluid motion
+// ============================================================
+class LandmarkSmoother {
+  constructor(alpha = 0.4) {
+    this._alpha  = alpha; // lower = smoother but more lag
+    this._prev   = null;
+  }
+
+  smooth(landmarks) {
+    if (!landmarks) { this._prev = null; return null; }
+    if (!this._prev) { this._prev = landmarks; return landmarks; }
+
+    const smoothed = landmarks.map((lm, i) => {
+      const p = this._prev[i] || lm;
+      return {
+        x:          p.x + this._alpha * (lm.x - p.x),
+        y:          p.y + this._alpha * (lm.y - p.y),
+        z:          (p.z || 0) + this._alpha * ((lm.z || 0) - (p.z || 0)),
+        visibility: lm.visibility
+      };
+    });
+
+    this._prev = smoothed;
+    return smoothed;
+  }
+
+  reset() { this._prev = null; }
 }
 
 // ============================================================
@@ -52,79 +133,173 @@ export class PoseRenderer {
     this._canvas = canvas;
     this._ctx    = canvas.getContext('2d');
     this._phase  = 0;
+    // Smoothers per person slot (max 5)
+    this._smoothers = Array.from({ length: 5 }, () => new LandmarkSmoother(0.35));
   }
 
   /**
-   * Draw skeleton and joints on canvas.
-   * @param {Array} landmarks    - 33 normalized pose landmarks
-   * @param {boolean} showSkeleton
-   * @param {boolean} showLandmarks
+   * Render skeleton overlay.
+   * @param {Array}         allLandmarks  - Array of landmark arrays (one per person)
+   * @param {SkeletonMode}  mode          - 'none' | 'hands' | 'full'
+   * @param {number}        maxPersons    - max number of people to render (1,2,3,Infinity)
    */
-  render(landmarks, showSkeleton, showLandmarks) {
-    if (!landmarks || landmarks.length === 0) return;
-    this._phase = (this._phase + 0.04) % (Math.PI * 2);
-    const cw = this._canvas.width;
-    const ch = this._canvas.height;
-    const px = lm => ({ x: lm.x * cw, y: lm.y * ch });
+  render(allLandmarks, mode, maxPersons = Infinity) {
+    if (!allLandmarks || allLandmarks.length === 0 || mode === SkeletonMode.NONE) return;
 
-    if (showSkeleton) {
-      this._drawConnections(landmarks, px);
+    this._phase = (this._phase + 0.05) % (Math.PI * 2);
+    const pulse = 0.7 + 0.3 * Math.sin(this._phase);
+
+    const count = Math.min(allLandmarks.length, maxPersons);
+    for (let i = 0; i < count; i++) {
+      const raw = allLandmarks[i];
+      // Smooth landmarks for this person slot
+      const lm = this._smoothers[i] ? this._smoothers[i].smooth(raw) : raw;
+      if (!lm) continue;
+
+      if (mode === SkeletonMode.FULL) {
+        this._drawFullBody(lm, pulse, i);
+      } else if (mode === SkeletonMode.HANDS) {
+        this._drawHandsOnly(lm, pulse, i);
+      }
     }
-    if (showLandmarks) {
-      this._drawJoints(landmarks, px);
+
+    // Reset smoothers for unused slots
+    for (let i = count; i < this._smoothers.length; i++) {
+      this._smoothers[i].reset();
     }
   }
 
-  _drawConnections(landmarks, px) {
+  // ── FULL BODY SKELETON ────────────────────────────────────
+  _drawFullBody(lm, pulse, personIdx) {
     const ctx = this._ctx;
-    POSE_CONNECTIONS.forEach(([i, j]) => {
-      const a = landmarks[i];
-      const b = landmarks[j];
-      if (!a || !b) return;
-      // Only draw visible landmarks (visibility > 0.5)
-      if ((a.visibility ?? 1) < 0.3 || (b.visibility ?? 1) < 0.3) return;
+    const cw  = this._canvas.width;
+    const ch  = this._canvas.height;
+    const px  = l => ({ x: l.x * cw, y: l.y * ch });
 
-      const pa = px(a), pb = px(b);
-      const color = getConnectionColor(i, j);
+    // Draw each connection
+    CONNECTIONS.forEach(({ a, b, region }) => {
+      const la = lm[a], lb = lm[b];
+      if (!la || !lb) return;
+      const visA = la.visibility ?? 1;
+      const visB = lb.visibility ?? 1;
+      if (visA < 0.25 || visB < 0.25) return; // skip invisible
 
+      const style = REGION_STYLE[region] || REGION_STYLE.torso;
+      const pa    = px(la), pb = px(lb);
+      const alpha = Math.min(visA, visB);
+
+      // Glow pass (wider, blurred)
       ctx.beginPath();
       ctx.moveTo(pa.x, pa.y);
       ctx.lineTo(pb.x, pb.y);
-      ctx.strokeStyle = color;
-      ctx.lineWidth   = 2.5;
-      ctx.shadowColor = color;
-      ctx.shadowBlur  = 8;
+      ctx.strokeStyle = style.glow.replace('0.5)', `${0.3 * pulse})`);
+      ctx.lineWidth   = style.lw * 3;
       ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.filter      = 'blur(4px)';
       ctx.stroke();
-      ctx.shadowBlur  = 0;
+
+      // Sharp pass
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+      ctx.strokeStyle = style.stroke.replace('0.85)', `${0.85 * alpha})`);
+      ctx.lineWidth   = style.lw;
+      ctx.filter      = 'none';
+      ctx.stroke();
+    });
+
+    ctx.filter = 'none';
+
+    // Draw key joints
+    KEY_JOINTS.forEach(idx => {
+      const l = lm[idx];
+      if (!l || (l.visibility ?? 1) < 0.3) return;
+      const p = px(l);
+      this._drawJoint(ctx, p, 5, pulse);
+    });
+
+    // Person label at top of body (nose or mid-shoulder)
+    const nose = lm[0];
+    if (nose && (nose.visibility ?? 1) > 0.4) {
+      const np = px(nose);
+      ctx.save();
+      ctx.font      = 'bold 11px Inter, sans-serif';
+      ctx.fillStyle = `rgba(0,212,255,${0.9 * pulse})`;
+      ctx.textAlign = 'center';
+      ctx.shadowColor= 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 6;
+      ctx.fillText(`P${personIdx + 1}`, np.x, np.y - 14);
+      ctx.restore();
+    }
+  }
+
+  // ── HANDS + ARMS ONLY ─────────────────────────────────────
+  _drawHandsOnly(lm, pulse, personIdx) {
+    const ctx = this._ctx;
+    const cw  = this._canvas.width;
+    const ch  = this._canvas.height;
+    const px  = l => ({ x: l.x * cw, y: l.y * ch });
+
+    HAND_CONNECTIONS_POSE.forEach(({ a, b, region }) => {
+      const la = lm[a], lb = lm[b];
+      if (!la || !lb) return;
+      if ((la.visibility ?? 1) < 0.25 || (lb.visibility ?? 1) < 0.25) return;
+
+      const style = REGION_STYLE[region];
+      const pa = px(la), pb = px(lb);
+
+      // Glow
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      ctx.strokeStyle = style.glow;
+      ctx.lineWidth   = style.lw * 3;
+      ctx.lineCap     = 'round';
+      ctx.filter      = 'blur(4px)';
+      ctx.stroke();
+
+      // Sharp
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth   = style.lw;
+      ctx.filter      = 'none';
+      ctx.stroke();
+    });
+
+    ctx.filter = 'none';
+
+    // Wrist joints
+    [15, 16].forEach(idx => {
+      const l = lm[idx];
+      if (!l || (l.visibility ?? 1) < 0.3) return;
+      this._drawJoint(ctx, px(l), 6, pulse);
+    });
+    // Elbow joints
+    [13, 14].forEach(idx => {
+      const l = lm[idx];
+      if (!l || (l.visibility ?? 1) < 0.3) return;
+      this._drawJoint(ctx, px(l), 4, pulse);
     });
   }
 
-  _drawJoints(landmarks, px) {
-    const ctx    = this._ctx;
-    const pulse  = 0.6 + 0.4 * Math.sin(this._phase);
+  // ── JOINT CIRCLE ──────────────────────────────────────────
+  _drawJoint(ctx, p, r, pulse) {
+    // Outer glow ring
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r + 3, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0,212,255,${0.25 * pulse})`;
+    ctx.lineWidth   = 1;
+    ctx.stroke();
 
-    landmarks.forEach((lm, i) => {
-      if (!lm) return;
-      if ((lm.visibility ?? 1) < 0.3) return;
-      const p = px(lm);
-
-      // Outer ring
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(0,212,255,${pulse * 0.6})`;
-      ctx.lineWidth   = 1;
-      ctx.stroke();
-
-      // Inner dot
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-      ctx.fillStyle   = '#00d4ff';
-      ctx.shadowColor = 'rgba(0,212,255,0.8)';
-      ctx.shadowBlur  = 10;
-      ctx.fill();
-      ctx.shadowBlur  = 0;
-    });
+    // Inner filled dot
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle   = '#fff';
+    ctx.shadowColor = 'rgba(0,212,255,0.9)';
+    ctx.shadowBlur  = 10;
+    ctx.fill();
+    ctx.shadowBlur  = 0;
   }
 }
 
@@ -133,27 +308,29 @@ export class PoseRenderer {
 // ============================================================
 export class PoseDetector {
   constructor() {
-    this._pose      = null;
-    this._ready     = false;
-    this._results   = null;
+    this._pose         = null;
+    this._ready        = false;
+    this._results      = [];   // Array of landmark arrays
     this._prevDetected = false;
   }
 
   async init() {
     return new Promise((resolve) => {
       try {
+        // MediaPipe Pose supports single person per instance.
+        // For multi-person we use a single detector and process results as array.
         const pose = new window.Pose({
           locateFile: (file) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+            `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
         });
 
         pose.setOptions({
-          modelComplexity:        1,
-          smoothLandmarks:        true,
-          enableSegmentation:     false,
-          smoothSegmentation:     false,
-          minDetectionConfidence: AppState.settings.confidence,
-          minTrackingConfidence:  0.5
+          modelComplexity:          1,
+          smoothLandmarks:          true,
+          enableSegmentation:       false,
+          smoothSegmentation:       false,
+          minDetectionConfidence:   AppState.settings.confidence,
+          minTrackingConfidence:    0.5
         });
 
         pose.onResults((results) => this._onResults(results));
@@ -175,10 +352,10 @@ export class PoseDetector {
   }
 
   async detect(videoElement) {
-    if (!this._ready || !this._pose) return null;
+    if (!this._ready || !this._pose) return [];
     try {
       await this._pose.send({ image: videoElement });
-    } catch (e) { /* skip */ }
+    } catch (e) { /* skip bad frames */ }
     return this._results;
   }
 
@@ -186,7 +363,8 @@ export class PoseDetector {
     const lm = results.poseLandmarks;
 
     if (lm && lm.length > 0) {
-      this._results = lm;
+      // MediaPipe Pose returns single person; wrap in array for unified API
+      this._results = [lm];
       AppState.poseDetected = true;
 
       if (!this._prevDetected) {
@@ -194,7 +372,7 @@ export class PoseDetector {
         this._prevDetected = true;
       }
     } else {
-      this._results = null;
+      this._results = [];
       AppState.poseDetected = false;
 
       if (this._prevDetected) {

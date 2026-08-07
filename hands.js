@@ -166,7 +166,7 @@ export class HandDetector {
       try {
         const hands = new window.Hands({
           locateFile: (file) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
         });
 
         hands.setOptions({
