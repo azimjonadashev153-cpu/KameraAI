@@ -138,6 +138,11 @@ export class DetectorOrchestrator {
 
     // Render overlays (order matters for layering)
     if (this.skeletonMode !== SkeletonMode.NONE && pose?.length > 0) {
+      // Pass video dimensions so renderer can scale keypoints correctly
+      this._poseRenderer.setInputSize(
+        this._video.videoWidth || this._canvas.width,
+        this._video.videoHeight || this._canvas.height
+      );
       this._poseRenderer.render(pose, this.skeletonMode, this.maxPersons);
     }
     if (AppState.settings.boundingBoxes && faces?.length > 0) {
