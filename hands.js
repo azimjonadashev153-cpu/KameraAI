@@ -62,10 +62,10 @@ export class HandRenderer {
     const colors = COLORS[side] || COLORS.Right;
 
     const xy = k => {
-      // TF.js hand-pose-detection returns pixel coords
-      // relative to the input image size
-      const sx = this._inW > 0 ? cw / this._inW : 1;
-      const sy = this._inH > 0 ? ch / this._inH : 1;
+      // If inW == 1 (holistic normalized), scale to canvas directly
+      // If inW > 1 (pixel coords), scale from input to canvas
+      const sx = this._inW <= 1 ? cw : cw / this._inW;
+      const sy = this._inH <= 1 ? ch : ch / this._inH;
       return { x: k.x * sx, y: k.y * sy };
     };
 
