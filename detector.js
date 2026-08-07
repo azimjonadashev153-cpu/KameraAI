@@ -122,18 +122,18 @@ export class DetectorOrchestrator {
 
     // Run all detections in parallel
     const [faces, pose, hands, motion] = await Promise.all([
-      AppState.settings.faceDetection   && this._modelsReady.face
+      AppState.settings.faceDetection && this._modelsReady.face
         ? this._faceDetector.detect(this._video)
-        : [],
-      AppState.settings.poseDetection   && this._modelsReady.pose
+        : Promise.resolve([]),
+      this.skeletonMode !== SkeletonMode.NONE && this._modelsReady.pose
         ? this._poseDetector.detect(this._video)
-        : null,
-      AppState.settings.handTracking    && this._modelsReady.hands
+        : Promise.resolve([]),
+      AppState.settings.handTracking && this._modelsReady.hands
         ? this._handDetector.detect(this._video)
-        : [],
+        : Promise.resolve([]),
       AppState.settings.motionDetection
         ? this._motionDetector.detect(this._video)
-        : { detected: false, intensity: 0 }
+        : Promise.resolve({ detected: false, intensity: 0 })
     ]);
 
     // Render overlays (order matters for layering)
@@ -170,11 +170,10 @@ export class DetectorOrchestrator {
   // ──────────────────────────────────────────────────────────
 
   async _loadMediaPipeScripts() {
-    // Load sequentially — MediaPipe scripts depend on each other
+    // Only load Face + Hands — Pose now uses TF.js MoveNet (loaded in index.html)
     const scripts = [
       'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
       'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js',
       'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js'
     ];
 
@@ -182,8 +181,27 @@ export class DetectorOrchestrator {
       await this._loadScript(src);
     }
 
+    // Wait for TF.js MoveNet to be available
+    await this._waitForTF();
+
     // Small pause to ensure globals are registered
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  /** Wait until TF.js and poseDetection are ready */
+  _waitForTF() {
+    return new Promise(resolve => {
+      const check = () => {
+        if (window.tf && window.poseDetection) {
+          resolve();
+        } else {
+          setTimeout(check, 200);
+        }
+      };
+      check();
+      // Max wait 10s
+      setTimeout(resolve, 10000);
+    });
   }
 
   _loadScript(src) {
