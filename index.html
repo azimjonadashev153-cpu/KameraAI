@@ -3,405 +3,398 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>AI Hand Tracker</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<title>AI Skeleton Tracker</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--c1:#00d4ff;--c2:#a855f7;--c3:#34d399;--c4:#818cf8;--bg:#070c18;--card:rgba(12,20,40,0.75)}
-body{background:var(--bg);color:#f1f5f9;font-family:'Inter',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+body{background:#000;overflow:hidden;height:100vh;width:100vw;font-family:'Inter',sans-serif}
 
-/* ANIMATED BG */
-#bg{position:fixed;inset:0;z-index:0;overflow:hidden}
-#bg-canvas{width:100%;height:100%;display:block}
-
-/* HEADER */
-#hdr{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:8px 20px;background:rgba(7,12,24,0.85);border-bottom:1px solid rgba(0,212,255,0.15);backdrop-filter:blur(24px);flex-shrink:0}
-.logo{display:flex;align-items:center;gap:10px}
-.logo-ring{position:relative;width:36px;height:36px}
-.logo-ring::before,.logo-ring::after{content:'';position:absolute;border-radius:50%;border:2px solid var(--c1);animation:spin 4s linear infinite}
-.logo-ring::before{inset:0;opacity:0.7}
-.logo-ring::after{inset:5px;border-color:var(--c2);animation-direction:reverse;animation-duration:3s;opacity:0.5}
-.logo-ai{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--c1);text-shadow:0 0 10px var(--c1)}
-@keyframes spin{to{transform:rotate(360deg)}}
-.logo-txt{font-size:1rem;font-weight:700;background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.logo-sub{font-size:0.6rem;color:#475569;letter-spacing:1px;text-transform:uppercase}
-.status-pill{display:flex;align-items:center;gap:7px;padding:5px 14px;border-radius:999px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,212,255,0.15);font-size:0.72rem;color:#94a3b8;letter-spacing:0.5px}
-.sdot{width:7px;height:7px;border-radius:50%;background:#ef4444;transition:all 0.4s;flex-shrink:0}
-.sdot.on{background:var(--c3);box-shadow:0 0 8px var(--c3);animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-.hdr-right{display:flex;align-items:center;gap:12px}
-.clock{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:600;color:var(--c1);text-shadow:0 0 12px rgba(0,212,255,0.5)}
-.date-lbl{font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;text-align:right}
-
-/* MAIN */
-#main{position:relative;z-index:5;display:flex;flex:1;gap:10px;padding:10px;min-height:0;overflow:hidden}
-
-/* CAMERA */
-#cam-wrap{position:relative;flex:1;background:#000;border-radius:14px;overflow:hidden;border:1px solid rgba(0,212,255,0.18);box-shadow:0 0 30px rgba(0,212,255,0.06)}
-video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+/* FULL SCREEN CAMERA */
+#wrap{position:relative;width:100vw;height:100vh;background:#000}
+#vid{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
 #oc{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}
-.corner{position:absolute;width:18px;height:18px;pointer-events:none;z-index:3}
-.corner.tl{top:8px;left:8px;border-top:2px solid var(--c1);border-left:2px solid var(--c1);border-radius:3px 0 0 0}
-.corner.tr{top:8px;right:8px;border-top:2px solid var(--c1);border-right:2px solid var(--c1);border-radius:0 3px 0 0}
-.corner.bl{bottom:8px;left:8px;border-bottom:2px solid var(--c1);border-left:2px solid var(--c1);border-radius:0 0 0 3px}
-.corner.br{bottom:8px;right:8px;border-bottom:2px solid var(--c1);border-right:2px solid var(--c1);border-radius:0 0 3px 0}
-.scan{position:absolute;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--c1),transparent);opacity:0.35;animation:scan 3s linear infinite;pointer-events:none;z-index:2}
-@keyframes scan{0%{top:-1px}100%{top:100%}}
-#fps-badge{position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.65);color:var(--c3);font-family:'JetBrains Mono',monospace;font-size:0.68rem;padding:3px 9px;border-radius:6px;border:1px solid rgba(52,211,153,0.25);z-index:4;transition:color 0.3s}
-#fps-badge.slow{color:#f59e0b}
-#fps-badge.bad{color:#ef4444}
-</style>
 
-/* PANEL */
-#panel{width:270px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;scrollbar-width:none}
-#panel::-webkit-scrollbar{display:none}
-.card{background:var(--card);border:1px solid rgba(0,212,255,0.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(20px);transition:border-color 0.3s}
-.card:hover{border-color:rgba(0,212,255,0.25)}
-.card-title{font-size:0.62rem;text-transform:uppercase;letter-spacing:1px;color:#475569;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.card-title::before{content:'';width:3px;height:10px;background:var(--c1);border-radius:2px;display:block}
+/* TOP BAR — minimal overlay */
+#topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent)}
 
-/* MODE BUTTONS */
-.mode-row{display:flex;gap:6px}
-.mbtn{flex:1;padding:7px 0;border-radius:8px;font-size:0.72rem;font-weight:600;border:1px solid rgba(0,212,255,0.2);color:#64748b;background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.25s;letter-spacing:0.3px;font-family:'Inter',sans-serif}
-.mbtn:hover{border-color:rgba(0,212,255,0.4);color:#94a3b8}
-.mbtn.active{background:rgba(0,212,255,0.12);border-color:var(--c1);color:var(--c1);box-shadow:0 0 12px rgba(0,212,255,0.25)}
-.mbtn.mh.active{background:rgba(52,211,153,0.1);border-color:var(--c3);color:var(--c3);box-shadow:0 0 12px rgba(52,211,153,0.2)}
+.status-pill{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12);font-size:0.7rem;color:#94a3b8;letter-spacing:0.5px;backdrop-filter:blur(10px)}
+.sdot{width:7px;height:7px;border-radius:50%;background:#ef4444;transition:all 0.4s}
+.sdot.on{background:#10b981;box-shadow:0 0 8px #10b981;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
 
-/* STATS */
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.stat-box{background:rgba(0,0,0,0.35);border-radius:8px;padding:9px;text-align:center;border:1px solid rgba(255,255,255,0.04);transition:all 0.3s}
-.stat-box.active{border-color:rgba(0,212,255,0.2);box-shadow:0 0 10px rgba(0,212,255,0.06)}
-.sv{font-size:1.3rem;font-weight:700;color:var(--c1);font-family:'JetBrains Mono',monospace;line-height:1}
-.sl{font-size:0.58rem;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:3px}
+#fps-badge{font-family:monospace;font-size:0.68rem;color:#10b981;background:rgba(0,0,0,0.5);border:1px solid rgba(16,185,129,0.3);padding:3px 9px;border-radius:6px;backdrop-filter:blur(10px)}
 
-/* HAND STATUS */
-.hands-display{display:flex;justify-content:space-around;align-items:center;padding:4px 0}
-.hand-box{text-align:center;flex:1;padding:8px;border-radius:10px;border:1px solid transparent;transition:all 0.3s}
-.hand-box.detected{border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.05)}
-.hand-emoji{font-size:2rem;display:block;transition:transform 0.3s;filter:grayscale(0.6);line-height:1.3}
-.hand-box.detected .hand-emoji{filter:none;animation:handFloat 1.5s ease-in-out infinite}
-@keyframes handFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.05)}}
-.hand-side{font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:3px}
-.hand-gest{font-size:0.72rem;color:var(--c3);font-weight:600;min-height:18px;margin-top:2px;transition:all 0.3s}
-.hand-divider{width:1px;background:rgba(255,255,255,0.06);align-self:stretch}
+/* BOTTOM CONTROLS */
+#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;background:linear-gradient(to top,rgba(0,0,0,0.7),transparent)}
 
-/* LOG */
-#log{max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,0.1) transparent}
-.ll{font-size:0.65rem;display:flex;gap:7px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.025);animation:fadeIn 0.3s ease}
-@keyframes fadeIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
-.lt{color:#334155;font-family:'JetBrains Mono',monospace;flex-shrink:0;font-size:0.6rem}
-.lm{color:#64748b}.lm.ok{color:var(--c3)}.lm.det{color:var(--c1)}.lm.w{color:#f59e0b}
+/* PERSON COUNT BUTTONS */
+.person-btns{display:flex;gap:6px;align-items:center}
+.person-lbl{font-size:0.65rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-right:4px}
+.pbtn{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.5);color:rgba(255,255,255,0.5);font-size:0.85rem;font-weight:700;cursor:pointer;transition:all 0.25s;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)}
+.pbtn:hover{border-color:rgba(200,175,120,0.6);color:rgba(200,175,120,0.9)}
+.pbtn.active{border-color:rgb(200,175,120);background:rgba(200,175,120,0.15);color:rgb(220,200,150);box-shadow:0 0 14px rgba(200,175,120,0.4)}
 
-/* FOOTER */
-#footer{position:relative;z-index:10;padding:5px 20px;text-align:center;font-size:0.62rem;color:#1e293b;border-top:1px solid rgba(0,212,255,0.07);flex-shrink:0}
+/* SKELETON MODE */
+.mode-btns{display:flex;gap:6px}
+.mbtn{padding:6px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.5);color:rgba(255,255,255,0.4);font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.25s;backdrop-filter:blur(10px);font-family:inherit}
+.mbtn:hover{border-color:rgba(200,175,120,0.5);color:rgba(200,175,120,0.8)}
+.mbtn.active{border-color:rgb(200,175,120);background:rgba(200,175,120,0.12);color:rgb(220,200,150);box-shadow:0 0 12px rgba(200,175,120,0.3)}
 
-/* TOAST */
-#toast{position:fixed;bottom:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.toast-item{background:rgba(12,20,40,0.95);border:1px solid rgba(0,212,255,0.3);border-radius:10px;padding:10px 16px;font-size:0.78rem;color:#f1f5f9;box-shadow:0 8px 24px rgba(0,0,0,0.4);animation:toastIn 0.35s cubic-bezier(.4,0,.2,1)}
-@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+/* CORNER DECORATIONS */
+.corner{position:absolute;width:20px;height:20px;pointer-events:none;z-index:5}
+.corner.tl{top:60px;left:10px;border-top:2px solid rgba(200,175,120,0.6);border-left:2px solid rgba(200,175,120,0.6)}
+.corner.tr{top:60px;right:10px;border-top:2px solid rgba(200,175,120,0.6);border-right:2px solid rgba(200,175,120,0.6)}
+.corner.bl{bottom:60px;left:10px;border-bottom:2px solid rgba(200,175,120,0.6);border-left:2px solid rgba(200,175,120,0.6)}
+.corner.br{bottom:60px;right:10px;border-bottom:2px solid rgba(200,175,120,0.6);border-right:2px solid rgba(200,175,120,0.6)}
 
+/* SCAN LINE */
+.scan{position:absolute;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,rgba(200,175,120,0.4),transparent);animation:scan 4s linear infinite;pointer-events:none;z-index:4}
+@keyframes scan{0%{top:-2px}100%{top:100%}}
+
+/* GESTURE LABEL */
+#gesture-display{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:10}
+.gest-label{font-size:1.1rem;font-weight:700;color:rgba(220,200,150,0.9);text-shadow:0 2px 8px rgba(0,0,0,0.8);background:rgba(0,0,0,0.35);padding:4px 14px;border-radius:20px;border:1px solid rgba(200,175,120,0.3);backdrop-filter:blur(8px);display:none}
+.gest-label.show{display:inline-block;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}
+
+/* LOADING OVERLAY */
+#loading{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;gap:16px}
+#loading.hidden{display:none}
+.loader-ring{width:60px;height:60px;border:3px solid rgba(200,175,120,0.2);border-top-color:rgb(200,175,120);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-txt{color:rgba(200,175,120,0.8);font-size:0.85rem;letter-spacing:1px}
 </style>
 </head>
 <body>
-<div id="bg"><canvas id="bg-canvas"></canvas></div>
-<div id="toast"></div>
+<div id="wrap">
+  <video id="vid" autoplay playsinline muted></video>
+  <canvas id="oc"></canvas>
 
-<div id="hdr">
-  <div class="logo">
-    <div class="logo-ring"><div class="logo-ai">AI</div></div>
-    <div>
-      <div class="logo-txt">Hand Tracker</div>
-      <div class="logo-sub">Infinity Intelligence v3.0</div>
-    </div>
-  </div>
-  <div class="status-pill"><div class="sdot" id="sdot"></div><span id="stxt">Starting…</span></div>
-  <div class="hdr-right">
-    <div>
-      <div class="clock" id="clk">00:00:00</div>
-      <div class="date-lbl" id="datelbl"></div>
-    </div>
-  </div>
-</div>
+  <div class="scan"></div>
+  <div class="corner tl"></div><div class="corner tr"></div>
+  <div class="corner bl"></div><div class="corner br"></div>
 
-<div id="main">
-  <div id="cam-wrap">
-    <video id="vid" autoplay playsinline muted></video>
-    <canvas id="oc"></canvas>
-    <div class="scan"></div>
-    <div class="corner tl"></div><div class="corner tr"></div>
-    <div class="corner bl"></div><div class="corner br"></div>
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="status-pill"><div class="sdot" id="sdot"></div><span id="stxt">Starting…</span></div>
     <div id="fps-badge">-- FPS</div>
   </div>
 
-  <div id="panel">
-    <div class="card">
-      <div class="card-title">Skeleton Mode</div>
-      <div class="mode-row">
-        <button class="mbtn" id="m-none" onclick="setMode('none')">None</button>
-        <button class="mbtn mh active" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
-      </div>
-    </div>
+  <!-- GESTURE DISPLAY CENTER -->
+  <div id="gesture-display"><div class="gest-label" id="glabel"></div></div>
 
-    <div class="card">
-      <div class="card-title">Statistics</div>
-      <div class="stat-grid">
-        <div class="stat-box" id="sb-fps"><div class="sv" id="sv-fps">0</div><div class="sl">FPS</div></div>
-        <div class="stat-box" id="sb-hands"><div class="sv" id="sv-hands">0</div><div class="sl">Hands</div></div>
-        <div class="stat-box"><div class="sv" id="sv-conf">—</div><div class="sl">Confidence</div></div>
-        <div class="stat-box"><div class="sv" id="sv-res">—</div><div class="sl">Resolution</div></div>
-      </div>
+  <!-- BOTTOM CONTROLS -->
+  <div id="controls">
+    <span class="person-lbl">Persons:</span>
+    <div class="person-btns">
+      <button class="pbtn active" id="p1" onclick="setPersons(1)">1</button>
+      <button class="pbtn" id="p2" onclick="setPersons(2)">2</button>
+      <button class="pbtn" id="p3" onclick="setPersons(3)">3</button>
     </div>
-
-    <div class="card">
-      <div class="card-title">Hand Status</div>
-      <div class="hands-display">
-        <div class="hand-box" id="hb-l">
-          <span class="hand-emoji">✋</span>
-          <div class="hand-side">Left</div>
-          <div class="hand-gest" id="hg-l"></div>
-        </div>
-        <div class="hand-divider"></div>
-        <div class="hand-box" id="hb-r">
-          <span class="hand-emoji" style="transform:scaleX(-1);display:inline-block">✋</span>
-          <div class="hand-side">Right</div>
-          <div class="hand-gest" id="hg-r"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Event Log</div>
-      <div id="log"></div>
+    <div style="width:1px;height:24px;background:rgba(255,255,255,0.1);margin:0 6px"></div>
+    <div class="mode-btns">
+      <button class="mbtn" id="m-none" onclick="setMode('none')">None</button>
+      <button class="mbtn active" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
+      <button class="mbtn" id="m-body" onclick="setMode('body')">🦴 Full Body</button>
     </div>
   </div>
+
+  <!-- LOADING -->
+  <div id="loading">
+    <div class="loader-ring"></div>
+    <div class="loader-txt">Loading AI Model…</div>
+  </div>
 </div>
-<div id="footer">AI Hand Tracker · Infinity Intelligence · MediaPipe Hands</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<!-- MediaPipe Holistic: face+pose+hands in ONE model -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/holistic.js" crossorigin="anonymous"></script>
 <script>
-// ─── BACKGROUND PARTICLES ────────────────────────────────────
-const bgC = document.getElementById('bg-canvas');
-const bgX = bgC.getContext('2d');
-let pts = [];
-function initBg(){
-  bgC.width = window.innerWidth; bgC.height = window.innerHeight;
-  pts = Array.from({length:50},()=>({
-    x:Math.random()*bgC.width, y:Math.random()*bgC.height,
-    vx:(Math.random()-.5)*.3, vy:(Math.random()-.5)*.3,
-    r:Math.random()*1.2+.3, a:Math.random()*.4+.05
-  }));
-}
-function drawBg(){
-  bgX.clearRect(0,0,bgC.width,bgC.height);
-  // grid
-  bgX.strokeStyle='rgba(0,212,255,0.03)'; bgX.lineWidth=.5;
-  for(let x=0;x<bgC.width;x+=60){bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,bgC.height);bgX.stroke()}
-  for(let y=0;y<bgC.height;y+=60){bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(bgC.width,y);bgX.stroke()}
-  pts.forEach(p=>{
-    p.x+=p.vx; p.y+=p.vy;
-    if(p.x<0||p.x>bgC.width)p.vx*=-1;
-    if(p.y<0||p.y>bgC.height)p.vy*=-1;
-    bgX.beginPath(); bgX.arc(p.x,p.y,p.r,0,Math.PI*2);
-    bgX.fillStyle=`rgba(0,212,255,${p.a})`; bgX.fill();
+const vid = document.getElementById('vid');
+const oc  = document.getElementById('oc');
+const ctx = oc.getContext('2d');
+
+let mode = 'hands';
+let maxPersons = 1;
+let phase = 0;
+let frames = 0, lastT = 0, fps = 0;
+let lastResults = null;
+let prevGestures = {};
+
+// ── BONE COLORS (ivory/cream like real skeleton) ──────────────
+// Base ivory: rgb(220,195,140) — warm bone color
+const BONE   = 'rgba(230,205,150,';
+const BONE_H = 'rgba(255,245,210,'; // highlight
+const BONE_S = 'rgba(170,145,90,';  // shadow
+const JOINT  = 'rgba(240,215,160,';
+
+// ── PERSON COUNT ─────────────────────────────────────────────
+function setPersons(n){
+  maxPersons = n;
+  [1,2,3].forEach(i=>{
+    document.getElementById('p'+i).classList.toggle('active', i===n);
   });
-  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
-    const d=Math.hypot(pts[i].x-pts[j].x,pts[i].y-pts[j].y);
-    if(d<100){bgX.beginPath();bgX.moveTo(pts[i].x,pts[i].y);bgX.lineTo(pts[j].x,pts[j].y);
-      bgX.strokeStyle=`rgba(0,212,255,${.08*(1-d/100)})`; bgX.lineWidth=.5; bgX.stroke()}
-  }
-  requestAnimationFrame(drawBg);
-}
-initBg(); window.addEventListener('resize',initBg); drawBg();
-
-// ─── CLOCK ────────────────────────────────────────────────────
-function updateClock(){
-  const n=new Date();
-  document.getElementById('clk').textContent=n.toLocaleTimeString('en-US',{hour12:false});
-  document.getElementById('datelbl').textContent=n.toLocaleDateString('en-US',{weekday:'short',day:'2-digit',month:'short'});
-}
-updateClock(); setInterval(updateClock,1000);
-
-// ─── LOG ──────────────────────────────────────────────────────
-function log(msg,type=''){
-  const d=document.getElementById('log');
-  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
-  const l=document.createElement('div'); l.className='ll';
-  l.innerHTML=`<span class="lt">${t}</span><span class="lm ${type}">${msg}</span>`;
-  d.appendChild(l); d.scrollTop=d.scrollHeight;
-  while(d.children.length>25)d.firstChild.remove();
 }
 
-// ─── TOAST ───────────────────────────────────────────────────
-function toast(msg,dur=2500){
-  const c=document.getElementById('toast');
-  const t=document.createElement('div'); t.className='toast-item'; t.textContent=msg;
-  c.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(30px)';t.style.transition='all 0.3s';setTimeout(()=>t.remove(),300)},dur);
-}
-
-// ─── MODE ─────────────────────────────────────────────────────
-let mode='hands';
+// ── MODE ──────────────────────────────────────────────────────
 function setMode(m){
-  mode=m;
-  document.getElementById('m-none').classList.toggle('active',m==='none');
-  document.getElementById('m-hands').classList.toggle('active',m==='hands');
-  log('Mode: '+m,'det');
+  mode = m;
+  ['none','hands','body'].forEach(x=>{
+    document.getElementById('m-'+x).classList.toggle('active', x===m);
+  });
 }
 
-// ─── GESTURE ─────────────────────────────────────────────────
-function gesture(kps){
-  if(!kps||kps.length<21)return'Hand';
-  const tips=[4,8,12,16,20],mcp=[2,5,9,13,17];
-  const ext=[1,2,3,4].map(i=>kps[tips[i]].y<kps[mcp[i]].y);
-  const th=Math.abs(kps[4].x-kps[2].x)>0.06;
-  if(ext.every(Boolean)&&th)return'Open ✋';
-  if(ext.every(f=>!f)&&!th)return'Fist ✊';
-  if(ext[1]&&!ext[0]&&!ext[2]&&!ext[3])return'Point ☝';
-  if(ext[1]&&ext[2]&&!ext[0]&&!ext[3])return'Peace ✌';
-  if(th&&!ext[0]&&!ext[1]&&!ext[2]&&!ext[3])return'Thumbs 👍';
-  if(!ext[0]&&!ext[1]&&!ext[2]&&!ext[3]&&!th)return'Fist ✊';
-  return'Hand';
+// ── GESTURE ───────────────────────────────────────────────────
+function detectGesture(kps){
+  if(!kps||kps.length<21) return '';
+  const tips=[4,8,12,16,20], mcp=[2,5,9,13,17];
+  const ext=[1,2,3,4].map(i=>kps[tips[i]].y < kps[mcp[i]].y);
+  const th = Math.abs(kps[4].x - kps[2].x) > 0.06;
+  if(ext.every(Boolean)&&th) return 'Open Hand ✋';
+  if(ext.every(f=>!f)&&!th) return 'Fist ✊';
+  if(ext[1]&&!ext[0]&&!ext[2]&&!ext[3]) return 'Pointing ☝';
+  if(ext[1]&&ext[2]&&!ext[0]&&!ext[3]) return 'Peace ✌';
+  if(th&&!ext[1]&&!ext[2]&&!ext[3]) return 'Thumbs Up 👍';
+  return '';
+}
+
+// ── BONE DRAWING HELPERS ──────────────────────────────────────
+function drawBone(ax,ay,bx,by,thick,alpha,pulse){
+  // Shadow pass
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(ax+1.5,ay+1.5); ctx.lineTo(bx+1.5,by+1.5);
+  ctx.strokeStyle=`rgba(0,0,0,${0.55*alpha})`; ctx.lineWidth=thick+3;
+  ctx.lineCap='round'; ctx.filter='blur(2px)'; ctx.stroke(); ctx.restore();
+
+  // Glow
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
+  ctx.strokeStyle=`rgba(230,200,130,${0.08*alpha*pulse})`; ctx.lineWidth=thick+10;
+  ctx.lineCap='round'; ctx.filter='blur(8px)'; ctx.stroke(); ctx.restore();
+
+  // Bone gradient
+  const len = Math.hypot(bx-ax,by-ay);
+  const nx=(by-ay)/len, ny=-(bx-ax)/len;
+  const g = ctx.createLinearGradient(ax+nx*thick*.5,ay+ny*thick*.5,ax-nx*thick*.5,ay-ny*thick*.5);
+  g.addColorStop(0,  BONE_H+(0.6*alpha)+')');
+  g.addColorStop(0.35,BONE+(0.95*alpha)+')');
+  g.addColorStop(0.65,BONE+(0.85*alpha)+')');
+  g.addColorStop(1,  BONE_S+(0.7*alpha)+')');
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
+  ctx.strokeStyle=g; ctx.lineWidth=thick; ctx.lineCap='round'; ctx.stroke();
+}
+
+function drawJoint(x,y,r,alpha,pulse){
+  // Shadow
+  ctx.beginPath(); ctx.arc(x+1,y+1,r,0,Math.PI*2);
+  ctx.fillStyle=`rgba(0,0,0,${0.6*alpha})`; ctx.fill();
+  // 3D sphere
+  const sg=ctx.createRadialGradient(x-r*.35,y-r*.38,r*.05,x,y,r);
+  sg.addColorStop(0,  BONE_H+(alpha*pulse)+')');
+  sg.addColorStop(0.4,BONE+(alpha*0.95)+')');
+  sg.addColorStop(0.75,BONE+(alpha*0.7)+')');
+  sg.addColorStop(1,  BONE_S+(alpha*0.5)+')');
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle=sg; ctx.fill();
+  // Specular
+  ctx.beginPath(); ctx.arc(x-r*.3,y-r*.32,r*.3,0,Math.PI*2);
+  ctx.fillStyle=`rgba(255,248,220,${0.5*alpha*pulse})`; ctx.fill();
 }
 </script>
 
 <script>
-// ─── HAND CONNECTIONS ─────────────────────────────────────────
-const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+// ── HAND CONNECTIONS (21 landmarks) ──────────────────────────
+const HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
 const TIPS=[4,8,12,16,20];
-// Finger segment colors for lifelike look
-const FINGER_COLORS=['rgba(255,180,100,','rgba(100,220,180,','rgba(130,160,255,','rgba(255,130,180,','rgba(180,230,100,'];
-const PALM_COLOR='rgba(0,212,255,';
 
-// Trail particles per hand
-const trails={Left:[],Right:[]};
-const MAX_TRAIL=12;
+function drawHand(kps, W, H, alpha, pulse){
+  if(!kps||kps.length<21) return;
+  const px=k=>({x:k.x*W, y:k.y*H});
 
-let phase=0;
-const vid=document.getElementById('vid');
-const oc=document.getElementById('oc');
-const ctx=oc.getContext('2d');
-let lastHands=[];
-let lastT=0,frames=0,fps=0;
-let prevGesture={Left:'',Right:''};
-
-// ─── DRAW HAND ────────────────────────────────────────────────
-function drawHand(kps,side,conf){
-  const W=oc.width,H=oc.height;
-  const p=k=>({x:k.x*W,y:k.y*H});
-  const pulse=0.75+0.25*Math.sin(phase+(side==='Left'?0:Math.PI));
-
-  // --- BONE SEGMENTS by finger ---
-  // Each finger: [mcp, pip, dip, tip]
-  const fingers=[[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
-  fingers.forEach((seg,fi)=>{
-    const col=fi===0?PALM_COLOR:FINGER_COLORS[fi-1];
-    for(let i=0;i<seg.length-1;i++){
-      const a=p(kps[seg[i]]),b=p(kps[seg[i+1]]);
-      const thick=fi===0?3.5:4.5-i*.5;
-      // Outer glow
-      ctx.save();
-      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
-      ctx.strokeStyle=col+(0.15*pulse)+')';
-      ctx.lineWidth=thick*4;ctx.lineCap='round';ctx.filter='blur(6px)';ctx.stroke();ctx.restore();
-      // Mid glow
-      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
-      ctx.strokeStyle=col+(0.35*pulse)+')';
-      ctx.lineWidth=thick*1.8;ctx.lineCap='round';ctx.stroke();
-      // Sharp bone
-      const g=ctx.createLinearGradient(a.x,a.y,b.x,b.y);
-      g.addColorStop(0,col+(0.7*pulse)+')');
-      g.addColorStop(.5,col+(0.95*pulse)+')');
-      g.addColorStop(1,col+(0.7*pulse)+')');
-      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
-      ctx.strokeStyle=g;ctx.lineWidth=thick;ctx.lineCap='round';ctx.stroke();
-    }
-  });
-  // Palm connections
-  [[0,5],[0,17],[5,9],[9,13],[13,17]].forEach(([a,b])=>{
-    const pa=p(kps[a]),pb=p(kps[b]);
-    ctx.save();
-    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);
-    ctx.strokeStyle=PALM_COLOR+(0.12*pulse)+')';ctx.lineWidth=16;ctx.lineCap='round';ctx.filter='blur(8px)';ctx.stroke();ctx.restore();
-    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);
-    ctx.strokeStyle=PALM_COLOR+(0.5*pulse)+')';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+  // Bones
+  HAND_CONN.forEach(([a,b])=>{
+    const pa=px(kps[a]), pb=px(kps[b]);
+    const isFinger=a>=5||b>=5;
+    const thick = isFinger ? 3.5 : 5;
+    drawBone(pa.x,pa.y,pb.x,pb.y,thick,alpha,pulse);
   });
 
-  // --- JOINTS ---
+  // Joints
   kps.forEach((k,i)=>{
-    const pt=p(k);
+    const p=px(k);
     const isTip=TIPS.includes(i);
     const isWrist=i===0;
-    const fi=i<=4?0:i<=8?1:i<=12?2:i<=16?3:4;
-    const col=fi===0?PALM_COLOR:FINGER_COLORS[fi-1];
     const r=isWrist?7:isTip?6:3.5;
-    // Shadow
-    ctx.beginPath();ctx.arc(pt.x+1,pt.y+1,r,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fill();
-    // 3D sphere
-    const sg=ctx.createRadialGradient(pt.x-r*.35,pt.y-r*.35,r*.05,pt.x,pt.y,r);
-    if(isWrist||isTip){
-      sg.addColorStop(0,'rgba(255,255,255,'+(.9*pulse)+')');
-      sg.addColorStop(.45,col+(.8*pulse)+')');
-      sg.addColorStop(1,col+(.4*pulse)+')');
-    } else {
-      sg.addColorStop(0,col+(.9*pulse)+')');
-      sg.addColorStop(.6,col+(.65*pulse)+')');
-      sg.addColorStop(1,col+(.3*pulse)+')');
-    }
-    ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);ctx.fillStyle=sg;
-    ctx.shadowColor=col+'.8)';ctx.shadowBlur=isTip?14:8;ctx.fill();ctx.shadowBlur=0;
+    drawJoint(p.x,p.y,r,alpha,pulse);
+  });
+}
+
+// ── FULL BODY SKELETON (MediaPipe Pose 33 landmarks) ──────────
+// Connections matching real anatomical skeleton
+const BODY_CONN = [
+  // SPINE
+  [11,12],[11,23],[12,24],[23,24],
+  // RIBCAGE approximation (shoulder-hip diagonals)
+  [11,24],[12,23],
+  // HEAD/NECK
+  [0,11],[0,12],
+  // LEFT ARM
+  [11,13],[13,15],
+  // RIGHT ARM
+  [12,14],[14,16],
+  // LEFT LEG
+  [23,25],[25,27],[27,29],[27,31],[29,31],
+  // RIGHT LEG
+  [24,26],[26,28],[28,30],[28,32],[30,32],
+  // SHOULDERS detail
+  [15,17],[15,19],[15,21],[17,19],
+  [16,18],[16,20],[16,22],[18,20],
+];
+
+// Bone thickness by body region
+function boneThickness(a,b){
+  if([11,12,23,24].includes(a)&&[11,12,23,24].includes(b)) return 9; // torso
+  if([11,12,23,24].includes(a)||[11,12,23,24].includes(b)) return 7;
+  if([13,14,25,26].includes(a)||[13,14,25,26].includes(b)) return 6;
+  if([15,16,27,28].includes(a)||[15,16,27,28].includes(b)) return 5;
+  return 4;
+}
+
+function jointSize(i){
+  if([11,12,23,24].includes(i)) return 9;  // shoulder/hip
+  if([13,14,25,26].includes(i)) return 7;  // elbow/knee
+  if([15,16,27,28].includes(i)) return 6;  // wrist/ankle
+  if([0].includes(i))           return 10; // nose/head
+  return 4;
+}
+
+function drawBody(lm, W, H, alpha, pulse){
+  if(!lm||lm.length<33) return;
+  const px = l=>({x:l.x*W, y:l.y*H, v: l.visibility??1});
+
+  // SKULL (circle at head)
+  const nose = px(lm[0]);
+  if(nose.v>0.3){
+    const r=22;
+    // Skull shadow
+    ctx.save();
+    ctx.beginPath(); ctx.arc(nose.x+2,nose.y+2,r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(0,0,0,${0.5*alpha})`; ctx.filter='blur(3px)'; ctx.fill(); ctx.restore();
+    // Skull
+    const sg=ctx.createRadialGradient(nose.x-r*.3,nose.y-r*.35,r*.1,nose.x,nose.y,r);
+    sg.addColorStop(0, BONE_H+(alpha*pulse)+')');
+    sg.addColorStop(0.5,BONE+(alpha*.9)+')');
+    sg.addColorStop(1, BONE_S+(alpha*.6)+')');
+    ctx.beginPath(); ctx.arc(nose.x,nose.y,r,0,Math.PI*2);
+    ctx.fillStyle=sg; ctx.fill();
     // Specular
-    ctx.beginPath();ctx.arc(pt.x-r*.3,pt.y-r*.3,r*.3,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,'+(0.45*pulse)+')';ctx.fill();
+    ctx.beginPath(); ctx.arc(nose.x-r*.3,nose.y-r*.32,r*.28,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,248,220,${0.45*alpha*pulse})`; ctx.fill();
+  }
+
+  // RIBCAGE — draw oval
+  const ls=px(lm[11]), rs=px(lm[12]), lh=px(lm[23]), rh=px(lm[24]);
+  if(ls.v>0.3&&rs.v>0.3&&lh.v>0.3&&rh.v>0.3){
+    const cx=(ls.x+rs.x)/2, cy=(ls.y+lh.y)/2;
+    const rw=Math.abs(rs.x-ls.x)*.45, rh2=Math.abs(lh.y-ls.y)*.48;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(cx,cy,rw,rh2,0,0,Math.PI*2);
+    ctx.strokeStyle=BONE+(0.5*alpha)+')'; ctx.lineWidth=3;
+    ctx.filter='blur(1px)'; ctx.stroke(); ctx.restore();
+    // Ribs
+    for(let i=1;i<=5;i++){
+      const t=i/6;
+      const ry=ls.y+t*(lh.y-ls.y);
+      const hw=rw*(1-Math.abs(t-.5)*.4);
+      ctx.beginPath(); ctx.ellipse(cx,ry,hw,rh2*.12,0,0,Math.PI*2);
+      ctx.strokeStyle=BONE+(0.35*alpha)+')'; ctx.lineWidth=2; ctx.stroke();
+    }
+    // Sternum
+    ctx.beginPath(); ctx.moveTo(cx,ls.y); ctx.lineTo(cx,lh.y);
+    ctx.strokeStyle=BONE+(0.45*alpha)+')'; ctx.lineWidth=3; ctx.stroke();
+    // Pelvis
+    ctx.beginPath(); ctx.ellipse(cx,lh.y,rw*.7,rh2*.22,0,0,Math.PI*2);
+    ctx.strokeStyle=BONE+(0.55*alpha)+')'; ctx.lineWidth=4; ctx.stroke();
+  }
+
+  // BONES
+  BODY_CONN.forEach(([a,b])=>{
+    const pa=px(lm[a]), pb=px(lm[b]);
+    if(pa.v<0.25||pb.v<0.25) return;
+    const t=boneThickness(a,b);
+    drawBone(pa.x,pa.y,pb.x,pb.y,t,alpha*Math.min(pa.v,pb.v),pulse);
   });
 
-  // --- WRIST LABEL ---
-  const w=p(kps[0]);
-  ctx.save();
-  ctx.font='bold 11px Inter,sans-serif';
-  ctx.fillStyle=`rgba(0,212,255,${0.85*pulse})`;
-  ctx.textAlign='center';
-  ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=6;
-  ctx.fillText(side,w.x,w.y+18);
-  ctx.restore();
-
-  // --- CONFIDENCE RING on wrist ---
-  if(conf){
-    ctx.beginPath();
-    ctx.arc(w.x,w.y,10,0,Math.PI*2*conf);
-    ctx.strokeStyle=`rgba(0,212,255,${0.6*pulse})`;
-    ctx.lineWidth=2;ctx.stroke();
-  }
-
-  // --- TRAIL particles ---
-  const tr=trails[side];
-  const tip=p(kps[8]); // index tip
-  if(tr.length===0||Math.hypot(tip.x-tr[tr.length-1].x,tip.y-tr[tr.length-1].y)>8){
-    tr.push({x:tip.x,y:tip.y,age:0,side});
-    if(tr.length>MAX_TRAIL)tr.shift();
-  }
-  tr.forEach(t=>t.age++);
-  for(let i=1;i<tr.length;i++){
-    const a=tr[i-1],b=tr[i];
-    const al=(1-a.age/MAX_TRAIL)*(1-b.age/MAX_TRAIL);
-    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle=`rgba(0,212,255,${al*0.7})`;ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();
-    ctx.beginPath();ctx.arc(b.x,b.y,2,0,Math.PI*2);
-    ctx.fillStyle=`rgba(0,212,255,${al*0.9})`;ctx.fill();
+  // JOINTS
+  for(let i=0;i<33;i++){
+    const p=px(lm[i]);
+    if(p.v<0.25) continue;
+    const r=jointSize(i);
+    if(i===0) continue; // skull already drawn
+    drawJoint(p.x,p.y,r,alpha*p.v,pulse);
   }
 }
 </script>
 
 <script>
-// ─── RENDER LOOP ──────────────────────────────────────────────
+// ── SMOOTHERS per person slot ─────────────────────────────────
+class Smoother{
+  constructor(a=0.35){this._a=a;this._p=null;}
+  smooth(lm){
+    if(!lm){this._p=null;return null;}
+    if(!this._p){this._p=lm.map(k=>({...k}));return this._p;}
+    this._p=lm.map((k,i)=>{
+      const q=this._p[i]||k;
+      return{...k,x:q.x+this._a*(k.x-q.x),y:q.y+this._a*(k.y-q.y),
+             visibility:k.visibility};
+    });
+    return this._p;
+  }
+  reset(){this._p=null;}
+}
+const smoothers={pose:new Smoother(.35),lh:new Smoother(.3),rh:new Smoother(.3)};
+
+// ── RENDER LOOP ───────────────────────────────────────────────
 function render(){
-  phase+=0.06;
-  oc.width=vid.videoWidth||640;
-  oc.height=vid.videoHeight||480;
+  phase+=0.05;
+  oc.width  = vid.videoWidth  || 640;
+  oc.height = vid.videoHeight || 480;
   ctx.clearRect(0,0,oc.width,oc.height);
 
-  if(mode==='hands' && lastHands.length>0){
-    lastHands.forEach(h=>drawHand(h.kps,h.side,h.conf));
+  const pulse = 0.8+0.2*Math.sin(phase);
+  const W=oc.width, H=oc.height;
+
+  if(mode!=='none' && lastResults){
+    const r=lastResults;
+
+    if(mode==='body' && r.poseLandmarks){
+      const lm=smoothers.pose.smooth(r.poseLandmarks);
+      drawBody(lm,W,H,0.95,pulse);
+      // Also draw hands from pose landmarks
+      if(r.leftHandLandmarks){
+        const lh=smoothers.lh.smooth(r.leftHandLandmarks);
+        drawHand(lh,W,H,0.9,pulse);
+        const g=detectGesture(lh);
+        showGesture(g);
+      }
+      if(r.rightHandLandmarks){
+        const rh=smoothers.rh.smooth(r.rightHandLandmarks);
+        drawHand(rh,W,H,0.9,pulse);
+        const g=detectGesture(rh);
+        showGesture(g);
+      }
+    }
+
+    if(mode==='hands'){
+      if(r.leftHandLandmarks){
+        const lh=smoothers.lh.smooth(r.leftHandLandmarks);
+        drawHand(lh,W,H,0.95,pulse);
+        showGesture(detectGesture(lh));
+      }
+      if(r.rightHandLandmarks){
+        const rh=smoothers.rh.smooth(r.rightHandLandmarks);
+        drawHand(rh,W,H,0.95,pulse);
+        showGesture(detectGesture(rh));
+      }
+    }
   }
 
   // FPS
@@ -410,97 +403,59 @@ function render(){
   if(now-lastT>=1000){
     fps=Math.round(frames*1000/(now-lastT));
     frames=0;lastT=now;
-    const fb=document.getElementById('fps-badge');
-    fb.textContent=fps+' FPS';
-    fb.className='';
-    if(fps<20)fb.className='bad';
-    else if(fps<35)fb.className='slow';
-    document.getElementById('sv-fps').textContent=fps;
-    document.getElementById('sb-fps').classList.toggle('active',fps>25);
+    document.getElementById('fps-badge').textContent=fps+' FPS';
+    document.getElementById('sv-fps')?.textContent; // no panel
   }
   requestAnimationFrame(render);
 }
 
-// ─── MEDIAPIPE INIT ───────────────────────────────────────────
-function initHands(){
-  log('Loading MediaPipe Hands…');
-  const hands=new Hands({
-    locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/'+f
+let gestTimer=null;
+function showGesture(g){
+  if(!g) return;
+  const el=document.getElementById('glabel');
+  if(g!==el.textContent){
+    el.textContent=g;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(gestTimer);
+    gestTimer=setTimeout(()=>el.classList.remove('show'),2000);
+  }
+}
+
+// ── MEDIAPIPE HOLISTIC ────────────────────────────────────────
+function initHolistic(){
+  const h=new Holistic({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/${f}`
   });
-  hands.setOptions({
-    maxNumHands:2,
-    modelComplexity:1,           // 0=lite (faster), 1=full (accurate)
-    minDetectionConfidence:0.75,
-    minTrackingConfidence:0.6
+  h.setOptions({
+    modelComplexity:1,
+    smoothLandmarks:true,
+    enableSegmentation:false,
+    refineFaceLandmarks:false,
+    minDetectionConfidence:0.6,
+    minTrackingConfidence:0.5
   });
-
-  hands.onResults(r=>{
-    const ml=r.multiHandLandmarks||[];
-    const mh=r.multiHandedness||[];
-    lastHands=[];
-    let leftDet=false,rightDet=false;
-
-    ml.forEach((lm,i)=>{
-      const side=mh[i]?.label||'Right';
-      const conf=mh[i]?.score||0.9;
-      lastHands.push({kps:lm,side,conf});
-
-      const g=gesture(lm);
-      if(side==='Left'){
-        leftDet=true;
-        document.getElementById('hb-l').classList.add('detected');
-        document.getElementById('hg-l').textContent=g;
-        if(g!==prevGesture.Left){log('Left: '+g,'det');prevGesture.Left=g;}
-      } else {
-        rightDet=true;
-        document.getElementById('hb-r').classList.add('detected');
-        document.getElementById('hg-r').textContent=g;
-        if(g!==prevGesture.Right){log('Right: '+g,'det');prevGesture.Right=g;}
-      }
-    });
-
-    if(!leftDet){
-      document.getElementById('hb-l').classList.remove('detected');
-      document.getElementById('hg-l').textContent='';
-      trails.Left=[];
-    }
-    if(!rightDet){
-      document.getElementById('hb-r').classList.remove('detected');
-      document.getElementById('hg-r').textContent='';
-      trails.Right=[];
-    }
-
-    document.getElementById('sv-hands').textContent=ml.length;
-    document.getElementById('sb-hands').classList.toggle('active',ml.length>0);
-    if(ml.length>0){
-      const c=Math.round((mh[0]?.score||0.9)*100);
-      document.getElementById('sv-conf').textContent=c+'%';
-    }
-  });
-
-  hands.initialize().then(()=>{
-    log('Model ready — show your hands!','ok');
-    toast('✋ Hand Tracker Ready!');
+  h.onResults(r=>{lastResults=r;});
+  h.initialize().then(()=>{
+    document.getElementById('loading').classList.add('hidden');
     document.getElementById('sdot').classList.add('on');
-    document.getElementById('stxt').textContent='Camera Active';
-
-    // Optimized frame sending — skip frames if busy
+    document.getElementById('stxt').textContent='AI Active';
     let busy=false;
-    function sendFrame(){
-      if(!busy && vid.readyState>=2){
+    function send(){
+      if(!busy&&vid.readyState>=2){
         busy=true;
-        hands.send({image:vid}).finally(()=>{busy=false;});
+        h.send({image:vid}).finally(()=>{busy=false;});
       }
-      requestAnimationFrame(sendFrame);
+      requestAnimationFrame(send);
     }
-    sendFrame();
+    send();
   }).catch(e=>{
-    log('Model failed: '+(e?.message||e),'w');
-    toast('⚠ Model load failed');
+    document.getElementById('loading').querySelector('.loader-txt').textContent='Model failed: '+e.message;
   });
 }
 
-// ─── CAMERA START ─────────────────────────────────────────────
+// ── CAMERA ────────────────────────────────────────────────────
 navigator.mediaDevices.getUserMedia({
   video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},
   audio:false
@@ -508,17 +463,12 @@ navigator.mediaDevices.getUserMedia({
   vid.srcObject=stream;
   vid.onloadedmetadata=()=>{
     vid.play();
-    const res=vid.videoWidth+'×'+vid.videoHeight;
-    document.getElementById('sv-res').textContent=res;
-    log('Camera started ('+res+')','ok');
-    toast('📷 Camera Connected');
     render();
-    setTimeout(initHands,300);
+    setTimeout(initHolistic,200);
   };
 }).catch(e=>{
-  log('Camera: '+(e?.message||e),'w');
+  document.getElementById('loading').querySelector('.loader-txt').textContent='Camera: '+e.message;
   document.getElementById('stxt').textContent='Camera denied';
-  toast('❌ Camera access denied');
 });
 </script>
 </body>
