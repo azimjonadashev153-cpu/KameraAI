@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>AI Skull & Hand Tracker</title>
+<title>AI Hand Tracker</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;overflow:hidden;height:100vh;width:100vw}
@@ -17,17 +17,17 @@ body{background:#000;overflow:hidden;height:100vh;width:100vw}
 .corner.br{bottom:50px;right:10px;border-bottom:2px solid rgba(220,195,140,.5);border-right:2px solid rgba(220,195,140,.5)}
 .scan{position:absolute;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(220,195,140,.3),transparent);animation:scan 3s linear infinite;pointer-events:none;z-index:4}
 @keyframes scan{0%{top:0}100%{top:100%}}
-#topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:linear-gradient(to bottom,rgba(0,0,0,.6),transparent)}
+#topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent)}
 .spill{display:flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1);font-size:.68rem;color:#94a3b8;font-family:monospace;backdrop-filter:blur(10px)}
 .sd{width:6px;height:6px;border-radius:50%;background:#ef4444}
 .sd.on{background:#10b981;box-shadow:0 0 7px #10b981;animation:blink 1.5s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 #fps-b{font-family:monospace;font-size:.68rem;color:#10b981;background:rgba(0,0,0,.5);border:1px solid rgba(16,185,129,.25);padding:3px 9px;border-radius:6px}
-#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent)}
+#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;background:linear-gradient(to top,rgba(0,0,0,.6),transparent)}
 .pbtn{width:32px;height:32px;border-radius:50%;border:2px solid rgba(220,195,140,.25);background:rgba(0,0,0,.5);color:rgba(220,195,140,.5);font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;font-family:monospace;display:flex;align-items:center;justify-content:center}
 .pbtn.active{border-color:rgb(220,195,140);background:rgba(220,195,140,.15);color:rgb(235,215,165);box-shadow:0 0 12px rgba(220,195,140,.35)}
 .dv{width:1px;height:20px;background:rgba(255,255,255,.1)}
-.mbtn{padding:5px 13px;border-radius:16px;border:1px solid rgba(220,195,140,.2);background:rgba(0,0,0,.5);color:rgba(220,195,140,.4);font-size:.7rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.mbtn{padding:5px 14px;border-radius:16px;border:1px solid rgba(220,195,140,.2);background:rgba(0,0,0,.5);color:rgba(220,195,140,.4);font-size:.7rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
 .mbtn.active{border-color:rgb(220,195,140);background:rgba(220,195,140,.12);color:rgb(235,215,165);box-shadow:0 0 10px rgba(220,195,140,.25)}
 .plbl{font-size:.58rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px}
 #gl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.95rem;font-weight:700;color:rgba(235,215,165,.95);text-shadow:0 2px 8px rgba(0,0,0,.9);background:rgba(0,0,0,.4);padding:4px 14px;border-radius:20px;border:1px solid rgba(220,195,140,.3);display:none;z-index:10;pointer-events:none}
@@ -59,284 +59,127 @@ body{background:#000;overflow:hidden;height:100vh;width:100vw}
     <button class="pbtn" id="p3" onclick="setP(3)">3</button>
     <div class="dv"></div>
     <button class="mbtn" id="m-none" onclick="setMode('none')">None</button>
-    <button class="mbtn active" id="m-skull" onclick="setMode('skull')">💀 Skull</button>
-    <button class="mbtn" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
-    <button class="mbtn" id="m-both" onclick="setMode('both')">Both</button>
+    <button class="mbtn active" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
   </div>
-  <div id="loading"><div class="lring"></div><div class="ltxt" id="ltxt">Loading AI…</div></div>
+  <div id="loading"><div class="lring"></div><div class="ltxt" id="ltxt">Loading…</div></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/holistic.js" crossorigin="anonymous"></script>
+<!-- MediaPipe Hands ONLY — lightest, fastest -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
 <script>
 const vid=document.getElementById('vid'),oc=document.getElementById('oc'),ctx=oc.getContext('2d');
-let mode='both',maxP=1,phase=0,frames=0,lastT=0,fps=0,lastR=null,gtT=null;
+let mode='hands',maxP=1,frames=0,lastT=0,gtT=null;
+let lHand=null,rHand=null;
 
 function setP(n){maxP=n;[1,2,3].forEach(i=>document.getElementById('p'+i).classList.toggle('active',i===n));}
-function setMode(m){mode=m;['none','skull','hands','both'].forEach(x=>document.getElementById('m-'+x).classList.toggle('active',x===m));}
+function setMode(m){mode=m;['none','hands'].forEach(x=>document.getElementById('m-'+x).classList.toggle('active',x===m));}
 
-// ── SMOOTHER ──────────────────────────────────────────────────
-class Sm{constructor(a=.5){this.a=a;this.p=null;}
-  run(lm){if(!lm){this.p=null;return null;}
+// ── SMOOTHER: alpha=0.7 = FAST response ───────────────────────
+class Sm{
+  constructor(){this.p=null;}
+  run(lm){
+    if(!lm){this.p=null;return null;}
     if(!this.p){this.p=lm.map(k=>({...k}));return this.p;}
-    this.p=lm.map((k,i)=>{const q=this.p[i]||k;
-      return{...k,x:q.x+this.a*(k.x-q.x),y:q.y+this.a*(k.y-q.y)};});return this.p;}
-}
-const SM={f:new Sm(.55),lh:new Sm(.5),rh:new Sm(.5)};
-
-// ── BONE COLORS: warm ivory/cream ─────────────────────────────
-const BM=a=>`rgba(222,196,142,${a})`;   // main bone
-const BH=a=>`rgba(252,238,195,${a})`;   // highlight
-const BS=a=>`rgba(155,128,72,${a})`;    // shadow/depth
-const BD=a=>`rgba(80,55,20,${a})`;      // dark cavity
-
-// ── DRAW PRIMITIVE ────────────────────────────────────────────
-function boneStroke(pts,thick,al,close=false){
-  if(pts.length<2)return;
-  // shadow
-  ctx.save();ctx.beginPath();
-  ctx.moveTo(pts[0].x+1.5,pts[0].y+1.5);
-  pts.slice(1).forEach(p=>ctx.lineTo(p.x+1.5,p.y+1.5));
-  if(close)ctx.closePath();
-  ctx.strokeStyle=`rgba(0,0,0,${.55*al})`;ctx.lineWidth=thick+2;ctx.lineCap='round';ctx.lineJoin='round';ctx.filter='blur(2px)';ctx.stroke();ctx.restore();
-  // glow
-  ctx.save();ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  if(close)ctx.closePath();
-  ctx.strokeStyle=BH(.07*al);ctx.lineWidth=thick+14;ctx.lineCap='round';ctx.filter='blur(8px)';ctx.stroke();ctx.restore();
-  // bone
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  if(close)ctx.closePath();
-  // cross-gradient for 3D roundness
-  const minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x));
-  const g=ctx.createLinearGradient(minX,0,maxX,0);
-  g.addColorStop(0,BS(.7*al));g.addColorStop(.2,BH(.85*al));g.addColorStop(.5,BM(.95*al));g.addColorStop(.8,BH(.85*al));g.addColorStop(1,BS(.65*al));
-  ctx.strokeStyle=g;ctx.lineWidth=thick;ctx.lineCap='round';ctx.lineJoin='round';ctx.filter='none';ctx.stroke();
-}
-
-function boneFill(pts,al,fillColor){
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.closePath();
-  ctx.fillStyle=fillColor||BM(.25*al);ctx.fill();
-  boneStroke(pts,3,al,true);
-}
-
-function joint3D(x,y,r,al){
-  const sg=ctx.createRadialGradient(x-r*.38,y-r*.4,r*.05,x,y,r);
-  sg.addColorStop(0,BH(al));sg.addColorStop(.35,BM(al*.95));sg.addColorStop(.75,BM(al*.65));sg.addColorStop(1,BS(al*.5));
-  ctx.save();ctx.beginPath();ctx.arc(x+1,y+1,r,0,Math.PI*2);ctx.fillStyle=`rgba(0,0,0,${.55*al})`;ctx.fill();ctx.restore();
-  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
-  ctx.beginPath();ctx.arc(x-r*.3,y-r*.33,r*.28,0,Math.PI*2);ctx.fillStyle=BH(.5*al);ctx.fill();
-}
-</script>
-
-<script>
-// ── ANATOMICAL SKULL (rasmdagi kabi) ─────────────────────────
-// FaceMesh landmark indices for each bone
-
-// Cranium (bosh suyagi) boundary
-const CRANIUM=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
-// Frontal bone (peshona suyagi)
-const FRONTAL=[10,67,109,10,338,297,10,54,103,67];
-// Temporal line
-const TEMPORAL_L=[234,93,132,58,172,136];
-const TEMPORAL_R=[454,323,361,288,397,365];
-// Zygomatic arch (yonoq yoyi)
-const ZYGO_L=[234,93,132,58,172,136,150,149,176,148,152];
-const ZYGO_R=[454,323,361,288,397,365,379,378,400,377,152];
-// Orbital (ko'z kosasi)
-const ORB_L=[33,246,161,160,159,158,157,173,133,155,154,153,145,144,163,7,33];
-const ORB_R=[362,398,384,385,386,387,388,466,263,249,390,373,374,380,381,382,362];
-// Nasal bone (burun suyagi)
-const NASAL=[168,6,197,195,5,4,1,19,94];
-const NASAL_APT=[2,326,327,2,97,98,2];
-// Maxilla (yuqori jag')
-const MAXILLA_L=[61,40,37,0,267,270,291];
-const MAXILLA_R=[291,270,267,0,37,40,61];
-// Mandible (pastki jag' — harakatlanadi!)
-const MANDIBLE=[172,136,150,149,176,148,152,377,400,378,379,365,397,288,361,323,454,356,389,251,284,332,297,338,10];
-
-// Teeth indices
-const UPPER_TEETH=[61,185,40,39,37,0,267,269,270,409,291];
-const LOWER_TEETH=[146,91,181,84,17,314,405,321,375,308];
-
-// Iris indices (refineFaceLandmarks=true needed)
-const IRIS_L=[474,475,476,477,474];
-const IRIS_R=[469,470,471,472,469];
-
-function drawSkull(lm, W, H){
-  if(!lm||lm.length<468)return;
-  const p=i=>({x:lm[i].x*W,y:lm[i].y*H});
-  const pts=arr=>arr.map(i=>p(i));
-
-  // ── 1. CRANIUM FILL (bosh suyagi bo'shlig'ini to'ldirish) ──
-  ctx.save();
-  ctx.beginPath();
-  const cr=pts(CRANIUM);
-  cr.forEach((q,i)=>i===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y));
-  ctx.closePath();
-  // Volumetric gradient fill
-  const fy=cr[0].y,fy2=cr[Math.floor(cr.length/2)].y;
-  const gf=ctx.createLinearGradient(0,fy,0,fy2);
-  gf.addColorStop(0,BH(.18));gf.addColorStop(.4,BM(.25));gf.addColorStop(1,BS(.12));
-  ctx.fillStyle=gf;ctx.fill();
-  ctx.restore();
-
-  // ── 2. CRANIUM OUTLINE (bosh suyagi konturi) ──
-  boneStroke(pts(CRANIUM),5,.9,true);
-
-  // ── 3. CORONAL SUTURE (toj tikuvi — tepa) ──
-  const coronalL=pts([10,109,103,54,21,162,127,234]);
-  const coronalR=pts([10,338,297,332,284,251,389,454]);
-  boneStroke(coronalL,2,.5);
-  boneStroke(coronalR,2,.5);
-  // Suture texture (small bumps)
-  [coronalL,coronalR].forEach(suture=>{
-    for(let i=0;i<suture.length-1;i++){
-      const a=suture[i],b=suture[i+1];
-      const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
-      const nx=(b.y-a.y)/4,ny=-(b.x-a.x)/4;
-      ctx.beginPath();ctx.arc(mx+nx*.3,my+ny*.3,1.5,0,Math.PI*2);
-      ctx.fillStyle=BM(.4);ctx.fill();
-    }
-  });
-
-  // ── 4. SAGITTAL SUTURE (o'rta chiziq) ──
-  boneStroke(pts([10,9,8,168,6,197,195,5,4]),2,.45);
-
-  // ── 5. TEMPORAL REGION ──
-  boneStroke(pts(TEMPORAL_L),3,.6);
-  boneStroke(pts(TEMPORAL_R),3,.6);
-
-  // ── 6. EYE SOCKETS ──
-  // Left orbital cavity (qorachayiq)
-  ctx.save();
-  ctx.beginPath();
-  pts(ORB_L).forEach((q,i)=>i===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y));
-  ctx.closePath();ctx.fillStyle=BD(.85);ctx.fill();ctx.restore();
-  boneStroke(pts(ORB_L),3.5,.95,true);
-
-  // Right orbital cavity
-  ctx.save();
-  ctx.beginPath();
-  pts(ORB_R).forEach((q,i)=>i===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y));
-  ctx.closePath();ctx.fillStyle=BD(.85);ctx.fill();ctx.restore();
-  boneStroke(pts(ORB_R),3.5,.95,true);
-
-  // ── 7. NASAL CAVITY (burun bo'shlig'i) ──
-  const nasalTip=p(4),nasalL=p(97),nasalR=p(326),nasalB=p(2);
-  ctx.save();
-  ctx.beginPath();ctx.moveTo(nasalL.x,nasalL.y);
-  ctx.lineTo(nasalTip.x,nasalTip.y-6);ctx.lineTo(nasalR.x,nasalR.y);
-  ctx.lineTo(nasalB.x,nasalB.y+8);ctx.closePath();
-  ctx.fillStyle=BD(.8);ctx.fill();ctx.restore();
-  boneStroke(pts(NASAL),3,.8);
-  // Nasal aperture outline
-  ctx.beginPath();ctx.moveTo(nasalL.x,nasalL.y);ctx.lineTo(nasalTip.x,nasalTip.y-6);ctx.lineTo(nasalR.x,nasalR.y);ctx.lineTo(nasalB.x,nasalB.y+8);ctx.closePath();
-  ctx.strokeStyle=BM(.85);ctx.lineWidth=2.5;ctx.stroke();
-
-  // Nasal bone bridge
-  boneStroke(pts([168,6,197,195,5,4]),3.5,.85);
-  joint3D(p(168).x,p(168).y,5,.8); // nasion
-
-  // ── 8. ZYGOMATIC ARCH (yonoq yoyi) ──
-  boneStroke(pts([234,93,132,58,172]),3.5,.7);
-  boneStroke(pts([454,323,361,288,397]),3.5,.7);
-  // Zygomatic prominence joints
-  joint3D(p(234).x,p(234).y,6,.8);
-  joint3D(p(454).x,p(454).y,6,.8);
-
-  // ── 9. MAXILLA — yuqori jag' (static, cheekbone area) ──
-  boneStroke(pts([61,40,37,0,267,270,291]),3,.75);
-  boneStroke(pts([172,136,150,176,149,148,152,377,400,378,379,365]),4,.8);
-
-  // ── 10. MANDIBLE — pastki jag' (harakatlanadi!) ──
-  const jawPts=pts([172,136,150,149,176,148,152,377,400,378,379,365,397]);
-  boneStroke(jawPts,5,.9);
-  // Condylar process (jag' bo'g'imi)
-  joint3D(p(172).x,p(172).y,7,.85);
-  joint3D(p(397).x,p(397).y,7,.85);
-  joint3D(p(152).x,p(152).y,5,.75); // chin
-
-  // ── 11. TEETH (tishlar — og'iz ochilganda ko'rinadi) ──
-  const lip_top=p(13),lip_bot=p(14);
-  const mouthOpen=Math.abs(lip_bot.y-lip_top.y);
-  if(mouthOpen>6){
-    const alpha=Math.min(1,(mouthOpen-6)/15);
-    // Mouth cavity dark
-    ctx.save();
-    ctx.beginPath();
-    pts(UPPER_TEETH).forEach((q,i)=>i===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y));
-    pts([...LOWER_TEETH].reverse()).forEach(q=>ctx.lineTo(q.x,q.y));
-    ctx.closePath();ctx.fillStyle=`rgba(8,4,0,${.9*alpha})`;ctx.fill();ctx.restore();
-    // Upper teeth row
-    const utL=p(61),utR=p(291),utY=p(40).y;
-    const teethW=(utR.x-utL.x)/7;
-    for(let i=0;i<7;i++){
-      const tx=utL.x+teethW*i,ty=utY;
-      ctx.beginPath();
-      ctx.roundRect(tx+1,ty,teethW-2,Math.min(mouthOpen*.4,10),2);
-      ctx.fillStyle=BH(.9*alpha);ctx.fill();
-      ctx.strokeStyle=BS(.4*alpha);ctx.lineWidth=0.8;ctx.stroke();
-    }
-    // Lower teeth row
-    const ltL=p(61),ltR=p(291),ltY=p(91).y;
-    for(let i=0;i<7;i++){
-      const tx=ltL.x+teethW*i,ty=ltY;
-      ctx.beginPath();
-      ctx.roundRect(tx+1,ty-Math.min(mouthOpen*.35,8),teethW-2,Math.min(mouthOpen*.35,8),2);
-      ctx.fillStyle=BH(.85*alpha);ctx.fill();
-      ctx.strokeStyle=BS(.35*alpha);ctx.lineWidth=0.8;ctx.stroke();
-    }
-  }
-
-  // ── 12. IRIS (ko'z) ──
-  if(lm.length>=478){
-    [[IRIS_L,L_EYE_CENTER=p(468)],[IRIS_R,R_EYE_CENTER=p(473)]].forEach(([iris,_],side)=>{
-      const irisIdx=side===0?[474,475,476,477]:([469,470,471,472]);
-      if(irisIdx.every(i=>i<lm.length)){
-        const ips=irisIdx.map(i=>p(i));
-        const cx=ips.reduce((s,q)=>s+q.x,0)/4, cy=ips.reduce((s,q)=>s+q.y,0)/4;
-        const r=Math.hypot(ips[0].x-cx,ips[0].y-cy)||4;
-        // Eyeball
-        ctx.beginPath();ctx.arc(cx,cy,r*2,0,Math.PI*2);ctx.fillStyle=BM(.08);ctx.fill();
-        // Iris ring
-        ctx.beginPath();ctx.arc(cx,cy,r*1.3,0,Math.PI*2);ctx.strokeStyle=BM(.7);ctx.lineWidth=2;ctx.stroke();
-        // Pupil hole
-        ctx.beginPath();ctx.arc(cx,cy,r*.7,0,Math.PI*2);ctx.fillStyle=BD(.95);ctx.fill();
-        // Specular
-        ctx.beginPath();ctx.arc(cx-r*.35,cy-r*.35,r*.3,0,Math.PI*2);ctx.fillStyle=BH(.65);ctx.fill();
-      }
+    // alpha 0.7 = very fast tracking, minimal lag
+    this.p=lm.map((k,i)=>{
+      const q=this.p[i]||k;
+      return{x:q.x+.7*(k.x-q.x),y:q.y+.7*(k.y-q.y)};
     });
+    return this.p;
   }
-
-  // ── 13. KEY BONE JOINTS ──
-  [10,151,9,168,6,4,1,152,172,397,234,454,127,356,93,323].forEach(i=>{
-    if(i<lm.length)joint3D(p(i).x,p(i).y,i===10?7:i===152?5:4,.85);
-  });
 }
-</script>
+const SML=new Sm(),SMR=new Sm();
 
-<script>
-// ── HAND SKELETON ─────────────────────────────────────────────
-const HC=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+// ── BONE COLORS: ivory/cream ───────────────────────────────────
+const BM=a=>`rgba(222,196,142,${a})`;
+const BH=a=>`rgba(252,238,195,${a})`;
+const BS=a=>`rgba(155,128,72,${a})`;
+
+// ── DRAW BONE SEGMENT ──────────────────────────────────────────
+function drawBone(ax,ay,bx,by,thick){
+  // shadow
+  ctx.save();
+  ctx.beginPath();ctx.moveTo(ax+1.5,ay+1.5);ctx.lineTo(bx+1.5,by+1.5);
+  ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=thick+2;
+  ctx.lineCap='round';ctx.filter='blur(2px)';ctx.stroke();ctx.restore();
+  // outer glow
+  ctx.save();
+  ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);
+  ctx.strokeStyle=BH(.06);ctx.lineWidth=thick+12;
+  ctx.lineCap='round';ctx.filter='blur(8px)';ctx.stroke();ctx.restore();
+  // bone with 3D cross gradient
+  const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy)||1;
+  const nx=dy/len*thick*.45,ny=-dx/len*thick*.45;
+  const g=ctx.createLinearGradient(ax+nx,ay+ny,ax-nx,ay-ny);
+  g.addColorStop(0,BS(.65));
+  g.addColorStop(.25,BH(.9));
+  g.addColorStop(.5,BM(.95));
+  g.addColorStop(.75,BH(.85));
+  g.addColorStop(1,BS(.6));
+  ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);
+  ctx.strokeStyle=g;ctx.lineWidth=thick;ctx.lineCap='round';ctx.stroke();
+}
+
+// ── DRAW JOINT (3D sphere) ─────────────────────────────────────
+function drawJoint(x,y,r){
+  // shadow
+  ctx.beginPath();ctx.arc(x+1,y+1,r,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.fill();
+  // radial gradient sphere
+  const sg=ctx.createRadialGradient(x-r*.38,y-r*.4,r*.05,x,y,r);
+  sg.addColorStop(0,BH(1));
+  sg.addColorStop(.35,BM(.95));
+  sg.addColorStop(.75,BM(.65));
+  sg.addColorStop(1,BS(.5));
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
+  // specular
+  ctx.beginPath();ctx.arc(x-r*.3,y-r*.33,r*.28,0,Math.PI*2);
+  ctx.fillStyle=BH(.55);ctx.fill();
+}
+
+// ── HAND CONNECTIONS ──────────────────────────────────────────
+const HC=[
+  [0,1],[1,2],[2,3],[3,4],          // thumb
+  [0,5],[5,6],[6,7],[7,8],          // index
+  [5,9],[9,10],[10,11],[11,12],     // middle
+  [9,13],[13,14],[14,15],[15,16],   // ring
+  [13,17],[17,18],[18,19],[19,20],  // pinky
+  [0,17],[5,9],[9,13]               // palm
+];
 const TIPS=[4,8,12,16,20];
+// Thickness per segment
+function thick(a,b){
+  if(a===0||b===0)return 6;           // wrist
+  if([1,5,9,13,17].includes(a)||[1,5,9,13,17].includes(b))return 5; // MCP
+  if([2,6,10,14,18].includes(a)||[2,6,10,14,18].includes(b))return 4.5; // PIP
+  return 3.5;                          // DIP + tips
+}
 
 function drawHand(kps,W,H){
   if(!kps||kps.length<21)return;
   const p=k=>({x:kps[k].x*W,y:kps[k].y*H});
+
+  // Palm fill for volume
+  const palmPts=[0,1,5,9,13,17].map(i=>p(i));
+  ctx.save();
+  ctx.beginPath();palmPts.forEach((q,i)=>i===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y));
+  ctx.closePath();ctx.fillStyle=BM(.12);ctx.fill();ctx.restore();
+
+  // Bones
   HC.forEach(([a,b])=>{
     const pa=p(a),pb=p(b);
-    boneStroke([pa,pb],a>=5||b>=5?3.5:5.5,.9);
+    drawBone(pa.x,pa.y,pb.x,pb.y,thick(a,b));
   });
+
+  // Joints
   for(let i=0;i<21;i++){
     const q=p(i);
-    joint3D(q.x,q.y,i===0?7:TIPS.includes(i)?5.5:3.5,.9);
+    const r=i===0?8:TIPS.includes(i)?6:i<=4?4.5:4;
+    drawJoint(q.x,q.y,r);
   }
 }
 
-// gesture
+// ── GESTURE ───────────────────────────────────────────────────
 function gesture(kps){
   if(!kps||kps.length<21)return'';
   const tips=[4,8,12,16,20],mcp=[2,5,9,13,17];
@@ -352,62 +195,85 @@ function gesture(kps){
 function showG(g){
   if(!g)return;
   const el=document.getElementById('gl');
-  if(g!==el.textContent){el.textContent=g;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');clearTimeout(gtT);gtT=setTimeout(()=>el.classList.remove('show'),1800);}
+  if(g!==el.textContent){
+    el.textContent=g;el.classList.remove('show');
+    void el.offsetWidth;el.classList.add('show');
+    clearTimeout(gtT);gtT=setTimeout(()=>el.classList.remove('show'),1800);
+  }
 }
 
-// ── RENDER ────────────────────────────────────────────────────
+// ── RENDER LOOP ───────────────────────────────────────────────
 function render(){
-  oc.width=vid.videoWidth||640;oc.height=vid.videoHeight||480;
+  oc.width=vid.videoWidth||640;
+  oc.height=vid.videoHeight||480;
   ctx.clearRect(0,0,oc.width,oc.height);
-  const W=oc.width,H=oc.height;
 
-  if(mode!=='none'&&lastR){
-    const r=lastR;
-    if((mode==='skull'||mode==='both')&&r.faceLandmarks){
-      drawSkull(SM.f.run(r.faceLandmarks),W,H);
-    }
-    if(mode==='hands'||mode==='both'){
-      if(r.leftHandLandmarks){const lh=SM.lh.run(r.leftHandLandmarks);drawHand(lh,W,H);showG(gesture(lh));}
-      if(r.rightHandLandmarks){const rh=SM.rh.run(r.rightHandLandmarks);drawHand(rh,W,H);showG(gesture(rh));}
-    }
+  if(mode==='hands'){
+    const W=oc.width,H=oc.height;
+    if(lHand)drawHand(lHand,W,H);
+    if(rHand)drawHand(rHand,W,H);
   }
 
-  frames++;const now=performance.now();
-  if(now-lastT>=1000){fps=Math.round(frames*1000/(now-lastT));frames=0;lastT=now;document.getElementById('fps-b').textContent=fps+' FPS';}
+  frames++;
+  const now=performance.now();
+  if(now-lastT>=1000){
+    const fps=Math.round(frames*1000/(now-lastT));
+    frames=0;lastT=now;
+    document.getElementById('fps-b').textContent=fps+' FPS';
+  }
   requestAnimationFrame(render);
 }
 
-// ── HOLISTIC ──────────────────────────────────────────────────
+// ── MEDIAPIPE HANDS (lightest model, max speed) ───────────────
 function init(){
-  const h=new Holistic({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/${f}`});
-  h.setOptions({
-    modelComplexity:0,       // FASTEST
-    smoothLandmarks:true,
-    enableSegmentation:false,
-    refineFaceLandmarks:true,// iris enabled
-    minDetectionConfidence:.55,
-    minTrackingConfidence:.45
+  const hands=new Hands({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`
   });
-  h.onResults(r=>{lastR=r;});
-  h.initialize().then(()=>{
+  hands.setOptions({
+    maxNumHands:2,
+    modelComplexity:0,              // 0 = FASTEST
+    minDetectionConfidence:0.6,
+    minTrackingConfidence:0.5
+  });
+
+  hands.onResults(r=>{
+    lHand=null;rHand=null;
+    const ml=r.multiHandLandmarks||[];
+    const mh=r.multiHandedness||[];
+    ml.forEach((lm,i)=>{
+      const side=(mh[i]?.label)||'Right';
+      if(side==='Left'){lHand=SML.run(lm);}
+      else{rHand=SMR.run(lm);}
+      showG(gesture(lm));
+    });
+    if(ml.length===0){SML.run(null);SMR.run(null);}
+  });
+
+  hands.initialize().then(()=>{
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('sd').classList.add('on');
     document.getElementById('stxt').textContent='AI Active';
-    let busy=false;
+    // MAX SPEED: send every frame, no throttle
     function send(){
-      if(!busy&&vid.readyState>=2){
-        busy=true;h.send({image:vid}).then(()=>{busy=false;}).catch(()=>{busy=false;});
-      }
+      if(vid.readyState>=2) hands.send({image:vid});
       requestAnimationFrame(send);
     }
     send();
-  }).catch(e=>{document.getElementById('ltxt').textContent='Failed: '+(e?.message||e);});
+  }).catch(e=>{
+    document.getElementById('ltxt').textContent='Failed: '+(e?.message||e);
+  });
 }
 
-// ── CAMERA ────────────────────────────────────────────────────
-navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},audio:false})
-  .then(s=>{vid.srcObject=s;vid.onloadedmetadata=()=>{vid.play();render();setTimeout(init,200);};})
-  .catch(e=>{document.getElementById('ltxt').textContent='Camera: '+(e?.message||e);document.getElementById('stxt').textContent='Camera denied';});
+// ── AUTO CAMERA ───────────────────────────────────────────────
+navigator.mediaDevices.getUserMedia({
+  video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},audio:false
+}).then(s=>{
+  vid.srcObject=s;
+  vid.onloadedmetadata=()=>{vid.play();render();setTimeout(init,100);};
+}).catch(e=>{
+  document.getElementById('ltxt').textContent='Camera: '+(e?.message||e);
+  document.getElementById('stxt').textContent='Camera denied';
+});
 </script>
 </body>
 </html>
