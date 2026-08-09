@@ -3,471 +3,379 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>AI Skeleton Tracker</title>
+<title>AI Face & Hand Tracker</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;overflow:hidden;height:100vh;width:100vw;font-family:'Inter',sans-serif}
-
-/* FULL SCREEN CAMERA */
-#wrap{position:relative;width:100vw;height:100vh;background:#000}
+body{background:#000;overflow:hidden;height:100vh;width:100vw}
+#wrap{position:relative;width:100vw;height:100vh}
 #vid{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
 #oc{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}
-
-/* TOP BAR — minimal overlay */
-#topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent)}
-
-.status-pill{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12);font-size:0.7rem;color:#94a3b8;letter-spacing:0.5px;backdrop-filter:blur(10px)}
-.sdot{width:7px;height:7px;border-radius:50%;background:#ef4444;transition:all 0.4s}
-.sdot.on{background:#10b981;box-shadow:0 0 8px #10b981;animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-
-#fps-badge{font-family:monospace;font-size:0.68rem;color:#10b981;background:rgba(0,0,0,0.5);border:1px solid rgba(16,185,129,0.3);padding:3px 9px;border-radius:6px;backdrop-filter:blur(10px)}
-
-/* BOTTOM CONTROLS */
-#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;background:linear-gradient(to top,rgba(0,0,0,0.7),transparent)}
-
-/* PERSON COUNT BUTTONS */
-.person-btns{display:flex;gap:6px;align-items:center}
-.person-lbl{font-size:0.65rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-right:4px}
-.pbtn{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.5);color:rgba(255,255,255,0.5);font-size:0.85rem;font-weight:700;cursor:pointer;transition:all 0.25s;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)}
-.pbtn:hover{border-color:rgba(200,175,120,0.6);color:rgba(200,175,120,0.9)}
-.pbtn.active{border-color:rgb(200,175,120);background:rgba(200,175,120,0.15);color:rgb(220,200,150);box-shadow:0 0 14px rgba(200,175,120,0.4)}
-
-/* SKELETON MODE */
-.mode-btns{display:flex;gap:6px}
-.mbtn{padding:6px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.5);color:rgba(255,255,255,0.4);font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.25s;backdrop-filter:blur(10px);font-family:inherit}
-.mbtn:hover{border-color:rgba(200,175,120,0.5);color:rgba(200,175,120,0.8)}
-.mbtn.active{border-color:rgb(200,175,120);background:rgba(200,175,120,0.12);color:rgb(220,200,150);box-shadow:0 0 12px rgba(200,175,120,0.3)}
-
-/* CORNER DECORATIONS */
-.corner{position:absolute;width:20px;height:20px;pointer-events:none;z-index:5}
-.corner.tl{top:60px;left:10px;border-top:2px solid rgba(200,175,120,0.6);border-left:2px solid rgba(200,175,120,0.6)}
-.corner.tr{top:60px;right:10px;border-top:2px solid rgba(200,175,120,0.6);border-right:2px solid rgba(200,175,120,0.6)}
-.corner.bl{bottom:60px;left:10px;border-bottom:2px solid rgba(200,175,120,0.6);border-left:2px solid rgba(200,175,120,0.6)}
-.corner.br{bottom:60px;right:10px;border-bottom:2px solid rgba(200,175,120,0.6);border-right:2px solid rgba(200,175,120,0.6)}
-
-/* SCAN LINE */
-.scan{position:absolute;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,rgba(200,175,120,0.4),transparent);animation:scan 4s linear infinite;pointer-events:none;z-index:4}
-@keyframes scan{0%{top:-2px}100%{top:100%}}
-
-/* GESTURE LABEL */
-#gesture-display{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:10}
-.gest-label{font-size:1.1rem;font-weight:700;color:rgba(220,200,150,0.9);text-shadow:0 2px 8px rgba(0,0,0,0.8);background:rgba(0,0,0,0.35);padding:4px 14px;border-radius:20px;border:1px solid rgba(200,175,120,0.3);backdrop-filter:blur(8px);display:none}
-.gest-label.show{display:inline-block;animation:fadeIn 0.3s ease}
-@keyframes fadeIn{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}
-
-/* LOADING OVERLAY */
-#loading{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;gap:16px}
+.corner{position:absolute;width:18px;height:18px;pointer-events:none;z-index:5}
+.corner.tl{top:56px;left:10px;border-top:2px solid rgba(200,175,120,.5);border-left:2px solid rgba(200,175,120,.5)}
+.corner.tr{top:56px;right:10px;border-top:2px solid rgba(200,175,120,.5);border-right:2px solid rgba(200,175,120,.5)}
+.corner.bl{bottom:56px;left:10px;border-bottom:2px solid rgba(200,175,120,.5);border-left:2px solid rgba(200,175,120,.5)}
+.corner.br{bottom:56px;right:10px;border-bottom:2px solid rgba(200,175,120,.5);border-right:2px solid rgba(200,175,120,.5)}
+.scan{position:absolute;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(200,175,120,.3),transparent);animation:scan 3s linear infinite;pointer-events:none;z-index:4}
+@keyframes scan{0%{top:0}100%{top:100%}}
+#topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:linear-gradient(to bottom,rgba(0,0,0,.65),transparent)}
+.spill{display:flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1);font-size:.68rem;color:#94a3b8;font-family:monospace;backdrop-filter:blur(10px)}
+.sd{width:6px;height:6px;border-radius:50%;background:#ef4444;transition:all .3s}
+.sd.on{background:#10b981;box-shadow:0 0 7px #10b981;animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+#fps-b{font-family:monospace;font-size:.68rem;color:#10b981;background:rgba(0,0,0,.5);border:1px solid rgba(16,185,129,.25);padding:3px 9px;border-radius:6px}
+#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent)}
+.pbtn{width:34px;height:34px;border-radius:50%;border:2px solid rgba(200,175,120,.25);background:rgba(0,0,0,.5);color:rgba(200,175,120,.5);font-size:.82rem;font-weight:700;cursor:pointer;transition:all .25s;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);font-family:monospace}
+.pbtn:hover{border-color:rgba(200,175,120,.6);color:rgba(200,175,120,.9)}
+.pbtn.active{border-color:rgb(200,175,120);background:rgba(200,175,120,.15);color:rgb(220,200,150);box-shadow:0 0 12px rgba(200,175,120,.35)}
+.divider{width:1px;height:22px;background:rgba(255,255,255,.1)}
+.mbtn{padding:5px 14px;border-radius:18px;border:1px solid rgba(200,175,120,.2);background:rgba(0,0,0,.5);color:rgba(200,175,120,.45);font-size:.7rem;font-weight:600;cursor:pointer;transition:all .25s;backdrop-filter:blur(10px);font-family:inherit}
+.mbtn:hover{border-color:rgba(200,175,120,.5);color:rgba(200,175,120,.8)}
+.mbtn.active{border-color:rgb(200,175,120);background:rgba(200,175,120,.12);color:rgb(220,200,150);box-shadow:0 0 10px rgba(200,175,120,.25)}
+.plbl{font-size:.6rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px}
+#glabel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1rem;font-weight:700;color:rgba(220,200,150,.95);text-shadow:0 2px 8px rgba(0,0,0,.9);background:rgba(0,0,0,.4);padding:4px 14px;border-radius:20px;border:1px solid rgba(200,175,120,.3);display:none;z-index:10;pointer-events:none}
+#glabel.show{display:block;animation:popIn .25s ease}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+#loading{position:absolute;inset:0;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;gap:14px}
 #loading.hidden{display:none}
-.loader-ring{width:60px;height:60px;border:3px solid rgba(200,175,120,0.2);border-top-color:rgb(200,175,120);border-radius:50%;animation:spin 1s linear infinite}
+.lring{width:52px;height:52px;border:3px solid rgba(200,175,120,.2);border-top-color:rgb(200,175,120);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loader-txt{color:rgba(200,175,120,0.8);font-size:0.85rem;letter-spacing:1px}
+.ltxt{color:rgba(200,175,120,.8);font-size:.8rem;letter-spacing:1px;font-family:monospace}
 </style>
 </head>
 <body>
 <div id="wrap">
   <video id="vid" autoplay playsinline muted></video>
   <canvas id="oc"></canvas>
-
   <div class="scan"></div>
   <div class="corner tl"></div><div class="corner tr"></div>
   <div class="corner bl"></div><div class="corner br"></div>
-
-  <!-- TOP BAR -->
   <div id="topbar">
-    <div class="status-pill"><div class="sdot" id="sdot"></div><span id="stxt">Starting…</span></div>
-    <div id="fps-badge">-- FPS</div>
+    <div class="spill"><div class="sd" id="sd"></div><span id="stxt">Starting…</span></div>
+    <div id="fps-b">-- FPS</div>
   </div>
-
-  <!-- GESTURE DISPLAY CENTER -->
-  <div id="gesture-display"><div class="gest-label" id="glabel"></div></div>
-
-  <!-- BOTTOM CONTROLS -->
+  <div id="glabel"></div>
   <div id="controls">
-    <span class="person-lbl">Persons:</span>
-    <div class="person-btns">
-      <button class="pbtn active" id="p1" onclick="setPersons(1)">1</button>
-      <button class="pbtn" id="p2" onclick="setPersons(2)">2</button>
-      <button class="pbtn" id="p3" onclick="setPersons(3)">3</button>
-    </div>
-    <div style="width:1px;height:24px;background:rgba(255,255,255,0.1);margin:0 6px"></div>
-    <div class="mode-btns">
-      <button class="mbtn" id="m-none" onclick="setMode('none')">None</button>
-      <button class="mbtn active" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
-      <button class="mbtn" id="m-body" onclick="setMode('body')">🦴 Full Body</button>
-    </div>
+    <span class="plbl">Persons:</span>
+    <button class="pbtn active" id="p1" onclick="setP(1)">1</button>
+    <button class="pbtn" id="p2" onclick="setP(2)">2</button>
+    <button class="pbtn" id="p3" onclick="setP(3)">3</button>
+    <div class="divider"></div>
+    <button class="mbtn" id="m-none" onclick="setMode('none')">None</button>
+    <button class="mbtn active" id="m-head" onclick="setMode('head')">😶 Head</button>
+    <button class="mbtn" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
+    <button class="mbtn" id="m-both" onclick="setMode('both')">Both</button>
   </div>
-
-  <!-- LOADING -->
-  <div id="loading">
-    <div class="loader-ring"></div>
-    <div class="loader-txt">Loading AI Model…</div>
-  </div>
+  <div id="loading"><div class="lring"></div><div class="ltxt" id="ltxt">Loading AI…</div></div>
 </div>
 
-<!-- MediaPipe Holistic: face+pose+hands in ONE model -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/holistic.js" crossorigin="anonymous"></script>
 <script>
-const vid = document.getElementById('vid');
-const oc  = document.getElementById('oc');
-const ctx = oc.getContext('2d');
+const vid=document.getElementById('vid'),oc=document.getElementById('oc'),ctx=oc.getContext('2d');
+let mode='both',maxP=1,phase=0,frames=0,lastT=0,fps=0,lastR=null,gtTimer=null;
 
-let mode = 'hands';
-let maxPersons = 1;
-let phase = 0;
-let frames = 0, lastT = 0, fps = 0;
-let lastResults = null;
-let prevGestures = {};
+// ── BONE PALETTE (ivory/cream X-ray) ─────────────────────────
+const B   =a=>`rgba(228,202,145,${a})`;  // main bone
+const BH  =a=>`rgba(255,245,200,${a})`;  // highlight
+const BS  =a=>`rgba(160,130,75,${a})`;   // shadow
+const SKIN=a=>`rgba(210,170,120,${a})`;  // skin tone joints
 
-// ── BONE COLORS (ivory/cream like real skeleton) ──────────────
-// Base ivory: rgb(220,195,140) — warm bone color
-const BONE   = 'rgba(230,205,150,';
-const BONE_H = 'rgba(255,245,210,'; // highlight
-const BONE_S = 'rgba(170,145,90,';  // shadow
-const JOINT  = 'rgba(240,215,160,';
-
-// ── PERSON COUNT ─────────────────────────────────────────────
-function setPersons(n){
-  maxPersons = n;
-  [1,2,3].forEach(i=>{
-    document.getElementById('p'+i).classList.toggle('active', i===n);
-  });
-}
-
-// ── MODE ──────────────────────────────────────────────────────
+// ── PERSON / MODE ─────────────────────────────────────────────
+function setP(n){maxP=n;[1,2,3].forEach(i=>document.getElementById('p'+i).classList.toggle('active',i===n));}
 function setMode(m){
-  mode = m;
-  ['none','hands','body'].forEach(x=>{
-    document.getElementById('m-'+x).classList.toggle('active', x===m);
-  });
+  mode=m;
+  ['none','head','hands','both'].forEach(x=>document.getElementById('m-'+x).classList.toggle('active',x===m));
 }
 
 // ── GESTURE ───────────────────────────────────────────────────
-function detectGesture(kps){
-  if(!kps||kps.length<21) return '';
-  const tips=[4,8,12,16,20], mcp=[2,5,9,13,17];
-  const ext=[1,2,3,4].map(i=>kps[tips[i]].y < kps[mcp[i]].y);
-  const th = Math.abs(kps[4].x - kps[2].x) > 0.06;
-  if(ext.every(Boolean)&&th) return 'Open Hand ✋';
-  if(ext.every(f=>!f)&&!th) return 'Fist ✊';
-  if(ext[1]&&!ext[0]&&!ext[2]&&!ext[3]) return 'Pointing ☝';
-  if(ext[1]&&ext[2]&&!ext[0]&&!ext[3]) return 'Peace ✌';
-  if(th&&!ext[1]&&!ext[2]&&!ext[3]) return 'Thumbs Up 👍';
-  return '';
+function gesture(kps){
+  if(!kps||kps.length<21)return'';
+  const tips=[4,8,12,16,20],mcp=[2,5,9,13,17];
+  const e=[1,2,3,4].map(i=>kps[tips[i]].y<kps[mcp[i]].y);
+  const th=Math.abs(kps[4].x-kps[2].x)>0.06;
+  if(e.every(Boolean)&&th)return'Open ✋';
+  if(e.every(f=>!f)&&!th)return'Fist ✊';
+  if(e[1]&&!e[0]&&!e[2]&&!e[3])return'Point ☝';
+  if(e[1]&&e[2]&&!e[0]&&!e[3])return'Peace ✌';
+  if(th&&!e[1]&&!e[2]&&!e[3])return'Thumbs 👍';
+  return'';
+}
+function showG(g){
+  if(!g)return;
+  const el=document.getElementById('glabel');
+  if(g!==el.textContent){el.textContent=g;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');clearTimeout(gtTimer);gtTimer=setTimeout(()=>el.classList.remove('show'),2000);}
 }
 
-// ── BONE DRAWING HELPERS ──────────────────────────────────────
-function drawBone(ax,ay,bx,by,thick,alpha,pulse){
-  // Shadow pass
-  ctx.save();
-  ctx.beginPath(); ctx.moveTo(ax+1.5,ay+1.5); ctx.lineTo(bx+1.5,by+1.5);
-  ctx.strokeStyle=`rgba(0,0,0,${0.55*alpha})`; ctx.lineWidth=thick+3;
-  ctx.lineCap='round'; ctx.filter='blur(2px)'; ctx.stroke(); ctx.restore();
+// ── SMOOTHER ──────────────────────────────────────────────────
+class Sm{constructor(a=.4){this.a=a;this.p=null;}
+  run(lm){if(!lm){this.p=null;return null;}if(!this.p){this.p=lm.map(k=>({...k}));return this.p;}
+    this.p=lm.map((k,i)=>{const q=this.p[i]||k;return{...k,x:q.x+this.a*(k.x-q.x),y:q.y+this.a*(k.y-q.y)};});return this.p;}
+}
+const SM={face:new Sm(.45),lh:new Sm(.4),rh:new Sm(.4)};
 
-  // Glow
-  ctx.save();
-  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
-  ctx.strokeStyle=`rgba(230,200,130,${0.08*alpha*pulse})`; ctx.lineWidth=thick+10;
-  ctx.lineCap='round'; ctx.filter='blur(8px)'; ctx.stroke(); ctx.restore();
-
-  // Bone gradient
-  const len = Math.hypot(bx-ax,by-ay);
-  const nx=(by-ay)/len, ny=-(bx-ax)/len;
-  const g = ctx.createLinearGradient(ax+nx*thick*.5,ay+ny*thick*.5,ax-nx*thick*.5,ay-ny*thick*.5);
-  g.addColorStop(0,  BONE_H+(0.6*alpha)+')');
-  g.addColorStop(0.35,BONE+(0.95*alpha)+')');
-  g.addColorStop(0.65,BONE+(0.85*alpha)+')');
-  g.addColorStop(1,  BONE_S+(0.7*alpha)+')');
-  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
-  ctx.strokeStyle=g; ctx.lineWidth=thick; ctx.lineCap='round'; ctx.stroke();
+// ── LOW-LEVEL DRAW ────────────────────────────────────────────
+function bone(ax,ay,bx,by,t,al){
+  // shadow
+  ctx.save();ctx.beginPath();ctx.moveTo(ax+1.5,ay+1.5);ctx.lineTo(bx+1.5,by+1.5);
+  ctx.strokeStyle=`rgba(0,0,0,${.5*al})`;ctx.lineWidth=t+2;ctx.lineCap='round';ctx.filter='blur(2px)';ctx.stroke();ctx.restore();
+  // glow
+  ctx.save();ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);
+  ctx.strokeStyle=BH(.06*al);ctx.lineWidth=t+10;ctx.lineCap='round';ctx.filter='blur(7px)';ctx.stroke();ctx.restore();
+  // gradient bone
+  const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy)||1;
+  const nx=dy/len*t*.4,ny=-dx/len*t*.4;
+  const g=ctx.createLinearGradient(ax+nx,ay+ny,ax-nx,ay-ny);
+  g.addColorStop(0,BH(.9*al));g.addColorStop(.4,B(.95*al));g.addColorStop(.7,B(.8*al));g.addColorStop(1,BS(.6*al));
+  ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle=g;ctx.lineWidth=t;ctx.lineCap='round';ctx.stroke();
 }
 
-function drawJoint(x,y,r,alpha,pulse){
-  // Shadow
-  ctx.beginPath(); ctx.arc(x+1,y+1,r,0,Math.PI*2);
-  ctx.fillStyle=`rgba(0,0,0,${0.6*alpha})`; ctx.fill();
-  // 3D sphere
+function joint(x,y,r,al){
+  ctx.beginPath();ctx.arc(x+1,y+1,r,0,Math.PI*2);ctx.fillStyle=`rgba(0,0,0,${.5*al})`;ctx.fill();
   const sg=ctx.createRadialGradient(x-r*.35,y-r*.38,r*.05,x,y,r);
-  sg.addColorStop(0,  BONE_H+(alpha*pulse)+')');
-  sg.addColorStop(0.4,BONE+(alpha*0.95)+')');
-  sg.addColorStop(0.75,BONE+(alpha*0.7)+')');
-  sg.addColorStop(1,  BONE_S+(alpha*0.5)+')');
-  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
-  ctx.fillStyle=sg; ctx.fill();
-  // Specular
-  ctx.beginPath(); ctx.arc(x-r*.3,y-r*.32,r*.3,0,Math.PI*2);
-  ctx.fillStyle=`rgba(255,248,220,${0.5*alpha*pulse})`; ctx.fill();
+  sg.addColorStop(0,BH(al));sg.addColorStop(.4,B(al*.95));sg.addColorStop(.8,B(al*.65));sg.addColorStop(1,BS(al*.45));
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=sg;ctx.fill();
+  ctx.beginPath();ctx.arc(x-r*.3,y-r*.32,r*.28,0,Math.PI*2);ctx.fillStyle=BH(.5*al);ctx.fill();
 }
 </script>
 
 <script>
-// ── HAND CONNECTIONS (21 landmarks) ──────────────────────────
-const HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+// ── FACE MESH DRAWING (realistic animated skull) ──────────────
+// FaceMesh indices for key features
+const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+const L_EYE=[33,246,161,160,159,158,157,173,133,155,154,153,145,144,163,7];
+const R_EYE=[362,398,384,385,386,387,388,466,263,249,390,373,374,380,381,382];
+const L_IRIS=[474,475,476,477];
+const R_IRIS=[469,470,471,472];
+const L_BROW=[70,63,105,66,107,55,65,52,53,46];
+const R_BROW=[300,293,334,296,336,285,295,282,283,276];
+const LIPS_OUT=[61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146];
+const LIPS_IN=[78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95];
+const NOSE_B=[168,6,197,195,5,4,45,220,115,48,64,98,97,2,326,327,294,290,455,305];
+
+function drawFaceSkeleton(lm, W, H){
+  if(!lm||lm.length<468)return;
+  const p=k=>({x:lm[k].x*W, y:lm[k].y*H});
+
+  // ── SKULL SHAPE (face oval as bone structure) ──
+  const ovalPts=FACE_OVAL.map(i=>p(i));
+  // Outer glow
+  ctx.save();
+  ctx.beginPath();ovalPts.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));ctx.closePath();
+  ctx.strokeStyle=BH(.08);ctx.lineWidth=18;ctx.filter='blur(10px)';ctx.stroke();ctx.restore();
+  // Bone oval
+  const og=ctx.createLinearGradient(0,ovalPts[0].y,0,ovalPts[Math.floor(ovalPts.length/2)].y);
+  og.addColorStop(0,B(.7));og.addColorStop(.5,B(.9));og.addColorStop(1,B(.65));
+  ctx.beginPath();ovalPts.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));ctx.closePath();
+  ctx.strokeStyle=og;ctx.lineWidth=4;ctx.filter='none';ctx.stroke();
+  // Shadow fill
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.fill();
+
+  // ── CHEEKBONES ──
+  [[234,93],[454,323],[127,162],[356,389]].forEach(([a,b])=>{
+    const pa=p(a),pb=p(b);
+    bone(pa.x,pa.y,pb.x,pb.y,3,.55);
+  });
+
+  // ── JAW ──
+  const jaw=[172,136,150,149,176,148,152,377,400,378,379,365,397,288,361,323];
+  for(let i=0;i<jaw.length-1;i++){
+    const pa=p(jaw[i]),pb=p(jaw[i+1]);
+    bone(pa.x,pa.y,pb.x,pb.y,3.5,.7);
+  }
+
+  // ── NOSE BRIDGE ──
+  const noseBridge=[168,6,197,195,5,4];
+  for(let i=0;i<noseBridge.length-1;i++){
+    const pa=p(noseBridge[i]),pb=p(noseBridge[i+1]);
+    bone(pa.x,pa.y,pb.x,pb.y,2.5,.65);
+  }
+  // Nose wings
+  bone(p(4).x,p(4).y,p(48).x,p(48).y,2,.5);
+  bone(p(4).x,p(4).y,p(278).x,p(278).y,2,.5);
+  bone(p(2).x,p(2).y,p(48).x,p(48).y,2,.5);
+  bone(p(2).x,p(2).y,p(278).x,p(278).y,2,.5);
+
+  // ── EYE SOCKETS ──
+  [L_EYE,R_EYE].forEach(eye=>{
+    const epts=eye.map(i=>p(i));
+    ctx.save();
+    ctx.beginPath();epts.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));ctx.closePath();
+    ctx.strokeStyle=B(.75);ctx.lineWidth=2.5;ctx.filter='none';ctx.stroke();
+    // Socket glow
+    ctx.strokeStyle=BH(.12);ctx.lineWidth=8;ctx.filter='blur(4px)';ctx.stroke();ctx.restore();
+  });
+
+  // ── PUPILS (irises — move with eyes) ──
+  const drawIris=(iris,eyeCenter)=>{
+    if(iris.every(i=>i<lm.length)){
+      const pts=iris.map(i=>p(i));
+      const cx=pts.reduce((s,q)=>s+q.x,0)/pts.length;
+      const cy=pts.reduce((s,q)=>s+q.y,0)/pts.length;
+      const r=Math.hypot(pts[0].x-cx,pts[0].y-cy)||5;
+      // Eyeball white
+      ctx.beginPath();ctx.arc(cx,cy,r*2.2,0,Math.PI*2);
+      ctx.fillStyle=B(.12);ctx.fill();
+      // Iris bone ring
+      ctx.beginPath();ctx.arc(cx,cy,r*1.2,0,Math.PI*2);
+      ctx.strokeStyle=B(.8);ctx.lineWidth=2;ctx.stroke();
+      // Pupil
+      ctx.beginPath();ctx.arc(cx,cy,r*.6,0,Math.PI*2);
+      ctx.fillStyle=`rgba(30,20,10,.9)`;ctx.fill();
+      // Specular dot
+      ctx.beginPath();ctx.arc(cx-r*.3,cy-r*.3,r*.25,0,Math.PI*2);
+      ctx.fillStyle=BH(.8);ctx.fill();
+    }
+  };
+  drawIris(L_IRIS);drawIris(R_IRIS);
+
+  // ── EYEBROWS (bone ridges) ──
+  [L_BROW,R_BROW].forEach(brow=>{
+    const bpts=brow.map(i=>p(i));
+    for(let i=0;i<bpts.length-1;i++) bone(bpts[i].x,bpts[i].y,bpts[i+1].x,bpts[i+1].y,3,.7);
+    bpts.forEach(pt=>joint(pt.x,pt.y,2.5,.7));
+  });
+
+  // ── ZYGOMATIC ARCH (cheekbone) ──
+  bone(p(234).x,p(234).y,p(93).x,p(93).y,2.5,.5);
+  bone(p(454).x,p(454).y,p(323).x,p(323).y,2.5,.5);
+
+  // ── MOUTH (opens/closes with actual landmarks) ──
+  const mOut=LIPS_OUT.map(i=>p(i));
+  const mIn =LIPS_IN.map(i=>p(i));
+  // Outer lip bone
+  ctx.beginPath();mOut.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));ctx.closePath();
+  ctx.strokeStyle=B(.8);ctx.lineWidth=2.5;ctx.stroke();
+  // Inner lip — shows opening
+  ctx.beginPath();mIn.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));ctx.closePath();
+  // Check mouth openness
+  const topLip=p(13),botLip=p(14),mouthH=Math.abs(botLip.y-topLip.y);
+  const isOpen=mouthH>(p(61).x-p(291).x<0?0:p(61).x-p(291).x)*0.08+4;
+  ctx.strokeStyle=isOpen?B(.9):B(.4);ctx.lineWidth=2;ctx.stroke();
+  if(isOpen){ctx.fillStyle=`rgba(10,5,0,${Math.min(.85,mouthH/30)})`;ctx.fill();}
+  // Teeth line when open
+  if(mouthH>8){
+    const midY=(topLip.y+botLip.y)/2;
+    ctx.beginPath();ctx.moveTo(p(61).x,midY);ctx.lineTo(p(291).x,midY);
+    ctx.strokeStyle=BH(.7);ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // ── KEY BONE JOINTS ──
+  [1,9,10,151,234,454,127,356,93,323,152,168,2,94,4].forEach(i=>{
+    if(i<lm.length){const pt=p(i);joint(pt.x,pt.y,3,.8);}
+  });
+
+  // ── FOREHEAD / BROW RIDGE ──
+  const foreheadPts=[54,103,67,109,10,338,297,332,284];
+  for(let i=0;i<foreheadPts.length-1;i++){
+    const pa=p(foreheadPts[i]),pb=p(foreheadPts[i+1]);
+    bone(pa.x,pa.y,pb.x,pb.y,2.5,.45);
+  }
+}
+</script>
+
+<script>
+// ── HAND DRAWING ──────────────────────────────────────────────
+const HC=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
 const TIPS=[4,8,12,16,20];
 
-function drawHand(kps, W, H, alpha, pulse){
-  if(!kps||kps.length<21) return;
-  const px=k=>({x:k.x*W, y:k.y*H});
-
-  // Bones
-  HAND_CONN.forEach(([a,b])=>{
-    const pa=px(kps[a]), pb=px(kps[b]);
+function drawHand(kps,W,H){
+  if(!kps||kps.length<21)return;
+  const p=k=>({x:kps[k].x*W,y:kps[k].y*H});
+  HC.forEach(([a,b])=>{
+    const pa=p(a),pb=p(b);
     const isFinger=a>=5||b>=5;
-    const thick = isFinger ? 3.5 : 5;
-    drawBone(pa.x,pa.y,pb.x,pb.y,thick,alpha,pulse);
+    bone(pa.x,pa.y,pb.x,pb.y,isFinger?3.5:5.5,.9);
   });
-
-  // Joints
-  kps.forEach((k,i)=>{
-    const p=px(k);
-    const isTip=TIPS.includes(i);
-    const isWrist=i===0;
-    const r=isWrist?7:isTip?6:3.5;
-    drawJoint(p.x,p.y,r,alpha,pulse);
-  });
-}
-
-// ── FULL BODY SKELETON (MediaPipe Pose 33 landmarks) ──────────
-// Connections matching real anatomical skeleton
-const BODY_CONN = [
-  // SPINE
-  [11,12],[11,23],[12,24],[23,24],
-  // RIBCAGE approximation (shoulder-hip diagonals)
-  [11,24],[12,23],
-  // HEAD/NECK
-  [0,11],[0,12],
-  // LEFT ARM
-  [11,13],[13,15],
-  // RIGHT ARM
-  [12,14],[14,16],
-  // LEFT LEG
-  [23,25],[25,27],[27,29],[27,31],[29,31],
-  // RIGHT LEG
-  [24,26],[26,28],[28,30],[28,32],[30,32],
-  // SHOULDERS detail
-  [15,17],[15,19],[15,21],[17,19],
-  [16,18],[16,20],[16,22],[18,20],
-];
-
-// Bone thickness by body region
-function boneThickness(a,b){
-  if([11,12,23,24].includes(a)&&[11,12,23,24].includes(b)) return 9; // torso
-  if([11,12,23,24].includes(a)||[11,12,23,24].includes(b)) return 7;
-  if([13,14,25,26].includes(a)||[13,14,25,26].includes(b)) return 6;
-  if([15,16,27,28].includes(a)||[15,16,27,28].includes(b)) return 5;
-  return 4;
-}
-
-function jointSize(i){
-  if([11,12,23,24].includes(i)) return 9;  // shoulder/hip
-  if([13,14,25,26].includes(i)) return 7;  // elbow/knee
-  if([15,16,27,28].includes(i)) return 6;  // wrist/ankle
-  if([0].includes(i))           return 10; // nose/head
-  return 4;
-}
-
-function drawBody(lm, W, H, alpha, pulse){
-  if(!lm||lm.length<33) return;
-  const px = l=>({x:l.x*W, y:l.y*H, v: l.visibility??1});
-
-  // SKULL (circle at head)
-  const nose = px(lm[0]);
-  if(nose.v>0.3){
-    const r=22;
-    // Skull shadow
-    ctx.save();
-    ctx.beginPath(); ctx.arc(nose.x+2,nose.y+2,r,0,Math.PI*2);
-    ctx.fillStyle=`rgba(0,0,0,${0.5*alpha})`; ctx.filter='blur(3px)'; ctx.fill(); ctx.restore();
-    // Skull
-    const sg=ctx.createRadialGradient(nose.x-r*.3,nose.y-r*.35,r*.1,nose.x,nose.y,r);
-    sg.addColorStop(0, BONE_H+(alpha*pulse)+')');
-    sg.addColorStop(0.5,BONE+(alpha*.9)+')');
-    sg.addColorStop(1, BONE_S+(alpha*.6)+')');
-    ctx.beginPath(); ctx.arc(nose.x,nose.y,r,0,Math.PI*2);
-    ctx.fillStyle=sg; ctx.fill();
-    // Specular
-    ctx.beginPath(); ctx.arc(nose.x-r*.3,nose.y-r*.32,r*.28,0,Math.PI*2);
-    ctx.fillStyle=`rgba(255,248,220,${0.45*alpha*pulse})`; ctx.fill();
-  }
-
-  // RIBCAGE — draw oval
-  const ls=px(lm[11]), rs=px(lm[12]), lh=px(lm[23]), rh=px(lm[24]);
-  if(ls.v>0.3&&rs.v>0.3&&lh.v>0.3&&rh.v>0.3){
-    const cx=(ls.x+rs.x)/2, cy=(ls.y+lh.y)/2;
-    const rw=Math.abs(rs.x-ls.x)*.45, rh2=Math.abs(lh.y-ls.y)*.48;
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(cx,cy,rw,rh2,0,0,Math.PI*2);
-    ctx.strokeStyle=BONE+(0.5*alpha)+')'; ctx.lineWidth=3;
-    ctx.filter='blur(1px)'; ctx.stroke(); ctx.restore();
-    // Ribs
-    for(let i=1;i<=5;i++){
-      const t=i/6;
-      const ry=ls.y+t*(lh.y-ls.y);
-      const hw=rw*(1-Math.abs(t-.5)*.4);
-      ctx.beginPath(); ctx.ellipse(cx,ry,hw,rh2*.12,0,0,Math.PI*2);
-      ctx.strokeStyle=BONE+(0.35*alpha)+')'; ctx.lineWidth=2; ctx.stroke();
-    }
-    // Sternum
-    ctx.beginPath(); ctx.moveTo(cx,ls.y); ctx.lineTo(cx,lh.y);
-    ctx.strokeStyle=BONE+(0.45*alpha)+')'; ctx.lineWidth=3; ctx.stroke();
-    // Pelvis
-    ctx.beginPath(); ctx.ellipse(cx,lh.y,rw*.7,rh2*.22,0,0,Math.PI*2);
-    ctx.strokeStyle=BONE+(0.55*alpha)+')'; ctx.lineWidth=4; ctx.stroke();
-  }
-
-  // BONES
-  BODY_CONN.forEach(([a,b])=>{
-    const pa=px(lm[a]), pb=px(lm[b]);
-    if(pa.v<0.25||pb.v<0.25) return;
-    const t=boneThickness(a,b);
-    drawBone(pa.x,pa.y,pb.x,pb.y,t,alpha*Math.min(pa.v,pb.v),pulse);
-  });
-
-  // JOINTS
-  for(let i=0;i<33;i++){
-    const p=px(lm[i]);
-    if(p.v<0.25) continue;
-    const r=jointSize(i);
-    if(i===0) continue; // skull already drawn
-    drawJoint(p.x,p.y,r,alpha*p.v,pulse);
+  for(let i=0;i<21;i++){
+    const pt=p(i);
+    const r=i===0?7:TIPS.includes(i)?5.5:3.5;
+    joint(pt.x,pt.y,r,.9);
   }
 }
-</script>
 
-<script>
-// ── SMOOTHERS per person slot ─────────────────────────────────
-class Smoother{
-  constructor(a=0.35){this._a=a;this._p=null;}
-  smooth(lm){
-    if(!lm){this._p=null;return null;}
-    if(!this._p){this._p=lm.map(k=>({...k}));return this._p;}
-    this._p=lm.map((k,i)=>{
-      const q=this._p[i]||k;
-      return{...k,x:q.x+this._a*(k.x-q.x),y:q.y+this._a*(k.y-q.y),
-             visibility:k.visibility};
-    });
-    return this._p;
-  }
-  reset(){this._p=null;}
-}
-const smoothers={pose:new Smoother(.35),lh:new Smoother(.3),rh:new Smoother(.3)};
-
-// ── RENDER LOOP ───────────────────────────────────────────────
+// ── RENDER ────────────────────────────────────────────────────
 function render(){
-  phase+=0.05;
-  oc.width  = vid.videoWidth  || 640;
-  oc.height = vid.videoHeight || 480;
+  phase+=0.07;
+  oc.width=vid.videoWidth||640;
+  oc.height=vid.videoHeight||480;
   ctx.clearRect(0,0,oc.width,oc.height);
 
-  const pulse = 0.8+0.2*Math.sin(phase);
-  const W=oc.width, H=oc.height;
+  const W=oc.width,H=oc.height;
 
-  if(mode!=='none' && lastResults){
-    const r=lastResults;
+  if(mode!=='none'&&lastR){
+    const r=lastR;
+    const showHead  =(mode==='head'||mode==='both');
+    const showHands =(mode==='hands'||mode==='both');
 
-    if(mode==='body' && r.poseLandmarks){
-      const lm=smoothers.pose.smooth(r.poseLandmarks);
-      drawBody(lm,W,H,0.95,pulse);
-      // Also draw hands from pose landmarks
-      if(r.leftHandLandmarks){
-        const lh=smoothers.lh.smooth(r.leftHandLandmarks);
-        drawHand(lh,W,H,0.9,pulse);
-        const g=detectGesture(lh);
-        showGesture(g);
-      }
-      if(r.rightHandLandmarks){
-        const rh=smoothers.rh.smooth(r.rightHandLandmarks);
-        drawHand(rh,W,H,0.9,pulse);
-        const g=detectGesture(rh);
-        showGesture(g);
-      }
+    if(showHead&&r.faceLandmarks){
+      const fl=SM.face.run(r.faceLandmarks);
+      drawFaceSkeleton(fl,W,H);
     }
-
-    if(mode==='hands'){
+    if(showHands){
       if(r.leftHandLandmarks){
-        const lh=smoothers.lh.smooth(r.leftHandLandmarks);
-        drawHand(lh,W,H,0.95,pulse);
-        showGesture(detectGesture(lh));
+        const lh=SM.lh.run(r.leftHandLandmarks);
+        drawHand(lh,W,H);
+        showG(gesture(lh));
       }
       if(r.rightHandLandmarks){
-        const rh=smoothers.rh.smooth(r.rightHandLandmarks);
-        drawHand(rh,W,H,0.95,pulse);
-        showGesture(detectGesture(rh));
+        const rh=SM.rh.run(r.rightHandLandmarks);
+        drawHand(rh,W,H);
+        showG(gesture(rh));
       }
     }
   }
 
-  // FPS
   frames++;
   const now=performance.now();
   if(now-lastT>=1000){
     fps=Math.round(frames*1000/(now-lastT));
     frames=0;lastT=now;
-    document.getElementById('fps-badge').textContent=fps+' FPS';
-    document.getElementById('sv-fps')?.textContent; // no panel
+    document.getElementById('fps-b').textContent=fps+' FPS';
   }
   requestAnimationFrame(render);
 }
 
-let gestTimer=null;
-function showGesture(g){
-  if(!g) return;
-  const el=document.getElementById('glabel');
-  if(g!==el.textContent){
-    el.textContent=g;
-    el.classList.remove('show');
-    void el.offsetWidth;
-    el.classList.add('show');
-    clearTimeout(gestTimer);
-    gestTimer=setTimeout(()=>el.classList.remove('show'),2000);
-  }
-}
-
-// ── MEDIAPIPE HOLISTIC ────────────────────────────────────────
-function initHolistic(){
+// ── HOLISTIC (modelComplexity=0 = MAX SPEED) ──────────────────
+function init(){
+  document.getElementById('ltxt').textContent='Loading model…';
   const h=new Holistic({
     locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/${f}`
   });
   h.setOptions({
-    modelComplexity:1,
+    modelComplexity:0,           // 0=FASTEST
     smoothLandmarks:true,
     enableSegmentation:false,
-    refineFaceLandmarks:false,
-    minDetectionConfidence:0.6,
-    minTrackingConfidence:0.5
+    refineFaceLandmarks:true,    // enables iris tracking
+    minDetectionConfidence:0.55,
+    minTrackingConfidence:0.45
   });
-  h.onResults(r=>{lastResults=r;});
+  h.onResults(r=>{lastR=r;});
   h.initialize().then(()=>{
     document.getElementById('loading').classList.add('hidden');
-    document.getElementById('sdot').classList.add('on');
+    document.getElementById('sd').classList.add('on');
     document.getElementById('stxt').textContent='AI Active';
+    // MAX SPEED: no busy check, send every rAF
     let busy=false;
     function send(){
       if(!busy&&vid.readyState>=2){
         busy=true;
-        h.send({image:vid}).finally(()=>{busy=false;});
+        h.send({image:vid}).then(()=>{busy=false;}).catch(()=>{busy=false;});
       }
       requestAnimationFrame(send);
     }
     send();
   }).catch(e=>{
-    document.getElementById('loading').querySelector('.loader-txt').textContent='Model failed: '+e.message;
+    document.getElementById('ltxt').textContent='Failed: '+(e?.message||e);
   });
 }
 
-// ── CAMERA ────────────────────────────────────────────────────
+// ── CAMERA (auto-start) ───────────────────────────────────────
 navigator.mediaDevices.getUserMedia({
-  video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},
-  audio:false
-}).then(stream=>{
-  vid.srcObject=stream;
-  vid.onloadedmetadata=()=>{
-    vid.play();
-    render();
-    setTimeout(initHolistic,200);
-  };
+  video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},audio:false
+}).then(s=>{
+  vid.srcObject=s;
+  vid.onloadedmetadata=()=>{vid.play();render();setTimeout(init,200);};
 }).catch(e=>{
-  document.getElementById('loading').querySelector('.loader-txt').textContent='Camera: '+e.message;
+  document.getElementById('ltxt').textContent='Camera: '+(e?.message||e);
   document.getElementById('stxt').textContent='Camera denied';
 });
 </script>
