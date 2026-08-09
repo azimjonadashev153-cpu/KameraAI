@@ -1,431 +1,281 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Human Tracker — Infinity Intelligence</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AI Hand Tracker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#f1f5f9;font-family:Inter,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+#header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(0,212,255,0.2);backdrop-filter:blur(20px);flex-shrink:0}
+.logo{font-size:1.1rem;font-weight:700;background:linear-gradient(90deg,#00d4ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.status{display:flex;align-items:center;gap:8px;font-size:0.78rem;color:#94a3b8}
+.dot{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:all 0.3s}
+.dot.active{background:#10b981;box-shadow:0 0 10px #10b981;animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+#main{display:flex;flex:1;gap:12px;padding:12px;min-height:0;overflow:hidden}
+#cam-wrap{position:relative;flex:1;background:#000;border-radius:16px;overflow:hidden;border:1px solid rgba(0,212,255,0.2)}
+video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+canvas{position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1)}
+#fps{position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.6);color:#10b981;font-size:0.7rem;font-family:monospace;padding:3px 8px;border-radius:6px;border:1px solid rgba(16,185,129,0.3)}
+.corner{position:absolute;width:20px;height:20px;pointer-events:none}
+.corner.tl{top:8px;left:8px;border-top:2px solid #00d4ff;border-left:2px solid #00d4ff}
+.corner.tr{top:8px;right:8px;border-top:2px solid #00d4ff;border-right:2px solid #00d4ff}
+.corner.bl{bottom:8px;left:8px;border-bottom:2px solid #00d4ff;border-left:2px solid #00d4ff}
+.corner.br{bottom:8px;right:8px;border-bottom:2px solid #00d4ff;border-right:2px solid #00d4ff}
+#panel{width:280px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.card{background:rgba(15,23,42,0.7);border:1px solid rgba(0,212,255,0.15);border-radius:12px;padding:14px;backdrop-filter:blur(20px)}
+.card h3{font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:10px}
+.mode-btns{display:flex;gap:6px;flex-wrap:wrap}
+.mbtn{padding:6px 12px;border-radius:20px;font-size:0.72rem;font-weight:600;border:1px solid rgba(0,212,255,0.3);color:#94a3b8;background:rgba(255,255,255,0.04);cursor:pointer;transition:all 0.2s}
+.mbtn.active{background:rgba(0,212,255,0.15);border-color:#00d4ff;color:#00d4ff;box-shadow:0 0 10px rgba(0,212,255,0.3)}
+.mbtn.hands.active{background:rgba(52,211,153,0.15);border-color:#34d399;color:#34d399}
+.mbtn.full.active{background:rgba(168,85,247,0.15);border-color:#a855f7;color:#a855f7}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;text-align:center}
+.stat-val{font-size:1.2rem;font-weight:700;color:#00d4ff;font-family:monospace}
+.stat-lbl{font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+.hand-row{display:flex;justify-content:space-around;padding:4px 0}
+.hand-item{text-align:center}
+.hand-icon{font-size:1.8rem;transition:transform 0.3s}
+.hand-item.active .hand-icon{animation:float 1s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.hand-lbl{font-size:0.62rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.hand-gest{font-size:0.7rem;color:#34d399;font-weight:600;margin-top:2px;min-height:16px}
+#log{height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.log-line{font-size:0.68rem;display:flex;gap:8px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+.log-t{color:#475569;font-family:monospace;flex-shrink:0}
+.log-m{color:#94a3b8}
+.log-m.ok{color:#10b981}.log-m.warn{color:#f59e0b}.log-m.det{color:#00d4ff}
+#footer{padding:6px 20px;text-align:center;font-size:0.65rem;color:#334155;border-top:1px solid rgba(0,212,255,0.1);flex-shrink:0}
+</style>
 </head>
-<body class="dark-theme" id="app-body">
-
-  <!-- ======================================================
-       BACKGROUND CANVAS (particles + animated grid)
-  ====================================================== -->
-  <canvas id="bg-canvas" aria-hidden="true"></canvas>
-
-  <!-- ======================================================
-       TOAST NOTIFICATION CONTAINER
-  ====================================================== -->
-  <div id="toast-container" role="alert" aria-live="polite"></div>
-
-  <!-- ======================================================
-       SETTINGS PANEL (slide-in)
-  ====================================================== -->
-  <aside id="settings-panel" class="settings-panel glass" aria-label="Settings" aria-hidden="true">
-    <div class="settings-header">
-      <span class="settings-icon">⚙</span>
-      <h2>Settings</h2>
-      <button id="close-settings" class="icon-btn" aria-label="Close settings">✕</button>
+<body>
+<div id="header">
+  <div class="logo">&#x2B21; AI Hand Tracker</div>
+  <div class="status"><div class="dot" id="dot"></div><span id="stxt">Starting camera&#x2026;</span></div>
+  <div style="font-size:0.75rem;color:#00d4ff;font-family:monospace" id="clock"></div>
+</div>
+<div id="main">
+  <div id="cam-wrap">
+    <video id="vid" autoplay playsinline muted></video>
+    <canvas id="cvs"></canvas>
+    <div id="fps">0 FPS</div>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+  </div>
+  <div id="panel">
+    <div class="card">
+      <h3>Skeleton Mode</h3>
+      <div class="mode-btns">
+        <button class="mbtn active" id="m-none" onclick="setMode('none')">None</button>
+        <button class="mbtn hands" id="m-hands" onclick="setMode('hands')">&#x270B; Hands</button>
+        <button class="mbtn full" id="m-full" onclick="setMode('full')">&#x1F9B4; Full Body</button>
+      </div>
     </div>
-    <div class="settings-body">
-
-      <div class="settings-section">
-        <h3 class="settings-section-title">Detection</h3>
-        <label class="toggle-row">
-          <span>Face Detection</span>
-          <input type="checkbox" id="toggle-face" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Pose Detection</span>
-          <input type="checkbox" id="toggle-pose" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Hand Tracking</span>
-          <input type="checkbox" id="toggle-hands" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Motion Detection</span>
-          <input type="checkbox" id="toggle-motion" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
+    <div class="card">
+      <h3>Stats</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="stat-val" id="s-fps">0</div><div class="stat-lbl">FPS</div></div>
+        <div class="stat"><div class="stat-val" id="s-hands">0</div><div class="stat-lbl">Hands</div></div>
+        <div class="stat"><div class="stat-val" id="s-conf">&#x2014;</div><div class="stat-lbl">Confidence</div></div>
+        <div class="stat"><div class="stat-val" id="s-res">&#x2014;</div><div class="stat-lbl">Resolution</div></div>
       </div>
-
-      <div class="settings-section">
-        <h3 class="settings-section-title">Overlay</h3>
-        <label class="toggle-row">
-          <span>Bounding Boxes</span>
-          <input type="checkbox" id="toggle-bbox" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Landmarks</span>
-          <input type="checkbox" id="toggle-landmarks" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Skeleton</span>
-          <input type="checkbox" id="toggle-skeleton" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Show FPS</span>
-          <input type="checkbox" id="toggle-fps" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-      </div>
-
-      <div class="settings-section">
-        <h3 class="settings-section-title">Camera</h3>
-        <label class="toggle-row">
-          <span>Mirror Camera</span>
-          <input type="checkbox" id="toggle-mirror" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Notifications</span>
-          <input type="checkbox" id="toggle-notify" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-        <label class="toggle-row">
-          <span>Dark Theme</span>
-          <input type="checkbox" id="toggle-theme" checked />
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-      </div>
-
-      <div class="settings-section">
-        <h3 class="settings-section-title">AI Confidence</h3>
-        <div class="slider-row">
-          <span>Min Confidence</span>
-          <span id="confidence-val" class="mono">0.5</span>
-        </div>
-        <input type="range" id="confidence-slider" class="slider" min="0.1" max="0.99" step="0.01" value="0.5" />
-      </div>
-
     </div>
-  </aside>
-  <div id="settings-overlay" class="settings-overlay hidden"></div>
-
-  <!-- ======================================================
-       MAIN APP WRAPPER
-  ====================================================== -->
-  <div id="app" class="app-wrapper">
-
-    <!-- ============ HEADER ============ -->
-    <header class="app-header glass" role="banner">
-      <div class="header-left">
-        <div class="logo-block">
-          <div class="logo-icon" aria-hidden="true">
-            <div class="logo-ring ring-1"></div>
-            <div class="logo-ring ring-2"></div>
-            <div class="logo-core">AI</div>
-          </div>
-          <div class="logo-text">
-            <span class="logo-title">Human Tracker</span>
-            <span class="logo-sub">Infinity Intelligence v2.0</span>
-          </div>
+    <div class="card">
+      <h3>Hand Status</h3>
+      <div class="hand-row">
+        <div class="hand-item" id="hi-left">
+          <div class="hand-icon">&#x270B;</div>
+          <div class="hand-lbl">Left</div>
+          <div class="hand-gest" id="hg-left"></div>
+        </div>
+        <div class="hand-item" id="hi-right">
+          <div class="hand-icon" style="transform:scaleX(-1)">&#x270B;</div>
+          <div class="hand-lbl">Right</div>
+          <div class="hand-gest" id="hg-right"></div>
         </div>
       </div>
+    </div>
+    <div class="card">
+      <h3>Event Log</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+<div id="footer">AI Hand Tracker &middot; Infinity Intelligence &middot; Powered by MediaPipe Hands</div>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<script>
+const vid=document.getElementById('vid');
+const cvs=document.getElementById('cvs');
+const ctx=cvs.getContext('2d');
+let mode='none', lastT=0, frameCount=0, fps=0;
+let leftHand=null, rightHand=null;
 
-      <div class="header-center">
-        <div class="status-pill" id="system-status">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="status-text">Initializing…</span>
-        </div>
-      </div>
+// Clock
+setInterval(()=>{
+  const n=new Date();
+  document.getElementById('clock').textContent=n.toLocaleTimeString('en-US',{hour12:false});
+},1000);
 
-      <div class="header-right">
-        <div class="header-time-block">
-          <span id="live-clock" class="mono clock"></span>
-          <span id="live-date" class="date-label"></span>
-        </div>
-        <button class="icon-btn glow-btn" id="btn-settings" aria-label="Open settings" title="Settings">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-        <button class="icon-btn glow-btn" id="btn-fullscreen" aria-label="Toggle fullscreen" title="Fullscreen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-        </button>
-      </div>
-    </header>
+// Log
+function log(msg,type=''){
+  const d=document.getElementById('log');
+  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
+  const l=document.createElement('div');
+  l.className='log-line';
+  l.innerHTML='<span class="log-t">'+t+'</span><span class="log-m '+type+'">'+msg+'</span>';
+  d.appendChild(l);
+  d.scrollTop=d.scrollHeight;
+  while(d.children.length>30)d.firstChild.remove();
+}
 
-    <!-- ============ MAIN CONTENT ============ -->
-    <main class="main-grid" role="main">
+// Mode buttons
+function setMode(m){
+  mode=m;
+  ['none','hands','full'].forEach(x=>{
+    document.getElementById('m-'+x).classList.toggle('active',x===m);
+  });
+  log('Mode: '+m,'det');
+}
 
-      <!-- ===== LEFT: CAMERA COLUMN ===== -->
-      <section class="camera-column" aria-label="Camera feed">
+// Gesture detection
+function gesture(kps){
+  if(!kps||kps.length<21)return 'Hand';
+  const tips=[4,8,12,16,20],mcp=[2,5,9,13,17];
+  const ext=[1,2,3,4].map(i=>kps[tips[i]].y<kps[mcp[i]].y);
+  const th=Math.abs(kps[4].x-kps[2].x)>0.06;
+  if(ext.every(Boolean)&&th)return 'Open \u270B';
+  if(ext.every(f=>!f)&&!th)return 'Fist \u270A';
+  if(ext[1]&&!ext[0]&&!ext[2]&&!ext[3])return 'Point \u261D';
+  if(ext[1]&&ext[2]&&!ext[0]&&!ext[3])return 'Peace \u270C';
+  if(th&&!ext[1]&&!ext[2]&&!ext[3])return 'Thumbs \uD83D\uDC4D';
+  return 'Hand';
+}
 
-        <!-- Camera Feed Card -->
-        <div class="card glass camera-card" id="camera-card">
-          <div class="card-header">
-            <span class="card-title">
-              <span class="card-icon">◉</span> Live Feed
-            </span>
-            <div class="camera-controls">
-              <button class="ctrl-btn" id="btn-switch-cam" title="Switch Camera">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
-              </button>
-              <button class="ctrl-btn" id="btn-mirror" title="Mirror">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-2 2 2 2M19 7l2 2-2 2"/></svg>
-              </button>
-              <button class="ctrl-btn" id="btn-zoom-in" title="Zoom In">＋</button>
-              <button class="ctrl-btn" id="btn-zoom-out" title="Zoom Out">－</button>
-              <button class="ctrl-btn" id="btn-cam-fullscreen" title="Fullscreen Preview">⤢</button>
-            </div>
-          </div>
+// Hand connections (MediaPipe 21-landmark topology)
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
 
-          <!-- SKELETON MODE SELECTOR -->
-          <div class="skeleton-mode-bar">
-            <span class="skeleton-mode-label">Skeleton:</span>
-            <button class="mode-btn mode-none active" id="mode-none" title="No skeleton — default view">None</button>
-            <button class="mode-btn mode-head" id="mode-head" title="Show head skeleton">🦷 Head</button>
-            <button class="mode-btn mode-hands" id="mode-hands" title="Show hand skeleton only">✋ Hands</button>
-            <button class="mode-btn mode-full" id="mode-full" title="Show full body skeleton">🦴 Full Body</button>
-          </div>
+// Draw one hand
+function drawHand(kps,side){
+  const W=cvs.width,H=cvs.height;
+  const c=side==='Left'
+    ?{l:'rgba(52,211,153,0.9)',g:'rgba(52,211,153,0.4)'}
+    :{l:'rgba(129,140,248,0.9)',g:'rgba(129,140,248,0.4)'};
+  const p=k=>({x:k.x*W,y:k.y*H});
+  // Glow pass
+  CONN.forEach(([a,b])=>{
+    const pa=p(kps[a]),pb=p(kps[b]);
+    ctx.save();
+    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);
+    ctx.strokeStyle=c.g;ctx.lineWidth=8;ctx.lineCap='round';ctx.filter='blur(4px)';
+    ctx.stroke();
+    ctx.restore();
+    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);
+    ctx.strokeStyle=c.l;ctx.lineWidth=2.5;ctx.lineCap='round';
+    ctx.stroke();
+  });
+  // Joints
+  kps.forEach((k,i)=>{
+    const pt=p(k),isTip=[4,8,12,16,20].includes(i),r=isTip?5:3;
+    ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);
+    ctx.fillStyle=isTip?'#fff':c.l;
+    ctx.shadowColor=c.g;ctx.shadowBlur=isTip?12:6;
+    ctx.fill();ctx.shadowBlur=0;
+  });
+}
 
-          <!-- PERSON COUNT SELECTOR -->
-          <div class="person-count-bar">
-            <span class="person-count-label">Persons:</span>
-            <button class="count-btn active" id="count-1" title="Track 1 person">1</button>
-            <button class="count-btn" id="count-2" title="Track 2 persons">2</button>
-            <button class="count-btn" id="count-3" title="Track 3 persons">3</button>
-            <span style="font-size:0.65rem;color:var(--text-muted);margin-left:0.5rem" id="person-track-label">person</span>
-          </div>
-          <div class="video-wrapper" id="video-wrapper">
-            <!-- Start overlay -->
-            <div class="start-overlay" id="start-overlay">
-              <div class="start-icon">◉</div>
-              <div class="start-title">AI Human Tracker</div>
-              <div class="start-sub">Click below to activate camera & AI</div>
-              <button class="start-btn glow-btn" id="btn-start-camera">
-                <span>Activate Camera</span>
-                <span class="start-btn-arrow">→</span>
-              </button>
-            </div>
-            <video id="webcam" autoplay playsinline muted></video>
-            <canvas id="overlay-canvas"></canvas>
-            <!-- FPS counter -->
-            <div class="fps-counter" id="fps-counter">0 FPS</div>
-            <!-- Recording indicator -->
-            <div class="rec-indicator hidden" id="rec-indicator">
-              <span class="rec-dot"></span> REC
-            </div>
-            <!-- Scan line effect -->
-            <div class="scan-line" aria-hidden="true"></div>
-            <!-- Corner decorations -->
-            <div class="corner top-left" aria-hidden="true"></div>
-            <div class="corner top-right" aria-hidden="true"></div>
-            <div class="corner bottom-left" aria-hidden="true"></div>
-            <div class="corner bottom-right" aria-hidden="true"></div>
-            <!-- Skeleton mode chip -->
-            <div class="mode-chip hidden" id="mode-chip">None</div>
-          </div>
+// Render loop
+function render(){
+  cvs.width=vid.videoWidth||640;
+  cvs.height=vid.videoHeight||480;
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  if(mode!=='none'){
+    if(leftHand)drawHand(leftHand,'Left');
+    if(rightHand)drawHand(rightHand,'Right');
+  }
+  frameCount++;
+  const now=performance.now();
+  if(now-lastT>=1000){
+    fps=Math.round(frameCount*1000/(now-lastT));
+    frameCount=0;lastT=now;
+    document.getElementById('fps').textContent=fps+' FPS';
+    document.getElementById('s-fps').textContent=fps;
+  }
+  requestAnimationFrame(render);
+}
 
-          <!-- Camera action bar -->
-          <div class="camera-action-bar">
-            <button class="action-btn danger-btn" id="btn-stop-camera" disabled>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-              Stop
-            </button>
-            <button class="action-btn" id="btn-screenshot" disabled>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              Screenshot
-            </button>
-            <button class="action-btn record-btn" id="btn-record" disabled>
-              <span class="rec-btn-dot"></span>
-              Record
-            </button>
-            <select class="cam-select" id="cam-select" aria-label="Select camera"></select>
-          </div>
-        </div>
+// MediaPipe Hands init
+function initHands(){
+  log('Loading MediaPipe Hands\u2026');
+  const hands=new Hands({
+    locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/'+f
+  });
+  hands.setOptions({
+    maxNumHands:2,
+    modelComplexity:1,
+    minDetectionConfidence:0.7,
+    minTrackingConfidence:0.5
+  });
+  hands.onResults(r=>{
+    leftHand=null;rightHand=null;
+    const ml=r.multiHandLandmarks||[],mh=r.multiHandedness||[];
+    ml.forEach((lm,i)=>{
+      const side=mh[i]&&mh[i].label?mh[i].label:'Right';
+      const g=gesture(lm);
+      if(side==='Left'){
+        leftHand=lm;
+        document.getElementById('hi-left').classList.add('active');
+        document.getElementById('hg-left').textContent=g;
+      } else {
+        rightHand=lm;
+        document.getElementById('hi-right').classList.add('active');
+        document.getElementById('hg-right').textContent=g;
+      }
+      document.getElementById('s-hands').textContent=ml.length;
+      document.getElementById('s-conf').textContent=Math.round(((mh[i]&&mh[i].score)||0.9)*100)+'%';
+    });
+    if(ml.length===0){
+      document.getElementById('hi-left').classList.remove('active');
+      document.getElementById('hg-left').textContent='';
+      document.getElementById('hi-right').classList.remove('active');
+      document.getElementById('hg-right').textContent='';
+      document.getElementById('s-hands').textContent='0';
+    }
+  });
+  hands.initialize().then(()=>{
+    log('Hands model ready!','ok');
+    document.getElementById('dot').classList.add('active');
+    document.getElementById('stxt').textContent='Camera Active';
+    // Auto-switch to Hands mode so skeleton is visible immediately
+    setMode('hands');
+    function sendFrame(){
+      if(vid.readyState>=2)hands.send({image:vid});
+      requestAnimationFrame(sendFrame);
+    }
+    sendFrame();
+  }).catch(e=>{
+    log('Hands failed: '+(e&&e.message?e.message:e),'warn');
+  });
+}
 
-        <!-- Screenshot Preview -->
-        <div class="card glass screenshot-card hidden" id="screenshot-card">
-          <div class="card-header">
-            <span class="card-title"><span class="card-icon">📷</span> Screenshot</span>
-            <button class="icon-btn" id="btn-close-screenshot">✕</button>
-          </div>
-          <img id="screenshot-preview" src="" alt="Screenshot preview" />
-          <div class="screenshot-actions">
-            <button class="action-btn" id="btn-download-screenshot">⬇ Download</button>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- ===== RIGHT: DASHBOARD COLUMN ===== -->
-      <section class="dashboard-column" aria-label="AI Dashboard">
-
-        <!-- STATUS CARDS GRID -->
-        <div class="status-grid">
-          <div class="stat-card glass" id="card-camera">
-            <div class="stat-icon camera-icon">◉</div>
-            <div class="stat-info">
-              <div class="stat-label">Camera</div>
-              <div class="stat-value" id="stat-camera">Offline</div>
-            </div>
-            <div class="stat-badge" id="badge-camera">OFF</div>
-          </div>
-          <div class="stat-card glass" id="card-ai">
-            <div class="stat-icon ai-icon">⬡</div>
-            <div class="stat-info">
-              <div class="stat-label">AI Engine</div>
-              <div class="stat-value" id="stat-ai">Loading</div>
-            </div>
-            <div class="stat-badge" id="badge-ai">...</div>
-          </div>
-          <div class="stat-card glass" id="card-faces">
-            <div class="stat-icon face-icon">☻</div>
-            <div class="stat-info">
-              <div class="stat-label">Faces</div>
-              <div class="stat-value" id="stat-faces">0</div>
-            </div>
-            <div class="stat-badge" id="badge-faces">—</div>
-          </div>
-          <div class="stat-card glass" id="card-motion">
-            <div class="stat-icon motion-icon">⚡</div>
-            <div class="stat-info">
-              <div class="stat-label">Motion</div>
-              <div class="stat-value" id="stat-motion">—</div>
-            </div>
-            <div class="stat-badge" id="badge-motion">—</div>
-          </div>
-          <div class="stat-card glass" id="card-pose">
-            <div class="stat-icon pose-icon">⬟</div>
-            <div class="stat-info">
-              <div class="stat-label">Pose</div>
-              <div class="stat-value" id="stat-pose">—</div>
-            </div>
-            <div class="stat-badge" id="badge-pose">—</div>
-          </div>
-          <div class="stat-card glass" id="card-hands">
-            <div class="stat-icon hand-icon">✋</div>
-            <div class="stat-info">
-              <div class="stat-label">Hands</div>
-              <div class="stat-value" id="stat-hands">0</div>
-            </div>
-            <div class="stat-badge" id="badge-hands">—</div>
-          </div>
-        </div>
-
-        <!-- SYSTEM INFO ROW -->
-        <div class="info-row">
-          <div class="info-chip glass"><span class="info-label">FPS</span><span class="info-val mono" id="info-fps">—</span></div>
-          <div class="info-chip glass"><span class="info-label">CPU</span><span class="info-val mono" id="info-cpu">—</span></div>
-          <div class="info-chip glass"><span class="info-label">RES</span><span class="info-val mono" id="info-res">—</span></div>
-          <div class="info-chip glass"><span class="info-label">BROWSER</span><span class="info-val mono" id="info-browser">—</span></div>
-        </div>
-
-        <!-- FACE ANALYSIS PANEL -->
-        <div class="card glass analysis-card" id="face-analysis-card">
-          <div class="card-header">
-            <span class="card-title"><span class="card-icon">◈</span> Face Analysis</span>
-            <span class="live-badge">LIVE</span>
-          </div>
-          <div id="face-analysis-content" class="face-analysis-content">
-            <div class="no-data-msg" id="face-no-data">No face detected</div>
-          </div>
-        </div>
-
-        <!-- HAND STATUS PANEL -->
-        <div class="card glass hand-card">
-          <div class="card-header">
-            <span class="card-title"><span class="card-icon">✋</span> Hand Status</span>
-          </div>
-          <div class="hand-status-grid" id="hand-status-grid">
-            <div class="hand-item" id="hand-left">
-              <div class="hand-label">Left Hand</div>
-              <div class="hand-icon-wrap">✋</div>
-              <div class="hand-state" id="hand-left-state">Not Detected</div>
-            </div>
-            <div class="hand-divider"></div>
-            <div class="hand-item" id="hand-right">
-              <div class="hand-label">Right Hand</div>
-              <div class="hand-icon-wrap" style="transform: scaleX(-1)">✋</div>
-              <div class="hand-state" id="hand-right-state">Not Detected</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- MOTION PANEL -->
-        <div class="card glass motion-card">
-          <div class="card-header">
-            <span class="card-title"><span class="card-icon">⚡</span> Motion Detection</span>
-          </div>
-          <div class="motion-content">
-            <div class="motion-status-row">
-              <div class="motion-indicator" id="motion-indicator">
-                <div class="motion-ring"></div>
-                <div class="motion-label" id="motion-label">No Motion</div>
-              </div>
-              <div class="motion-intensity">
-                <div class="intensity-label">Intensity</div>
-                <div class="intensity-bar-wrap">
-                  <div class="intensity-bar" id="intensity-bar"></div>
-                </div>
-                <div class="intensity-val mono" id="intensity-val">0%</div>
-              </div>
-            </div>
-            <div class="motion-history" id="motion-history" aria-label="Motion history"></div>
-          </div>
-        </div>
-
-        <!-- RECORDING PANEL -->
-        <div class="card glass recording-card">
-          <div class="card-header">
-            <span class="card-title"><span class="card-icon">⏺</span> Recording</span>
-            <span class="rec-timer mono hidden" id="rec-timer">00:00</span>
-          </div>
-          <div class="recording-controls">
-            <button class="rec-action-btn start-rec" id="btn-start-rec" disabled>
-              <span class="rec-dot-lg"></span> Start Recording
-            </button>
-            <button class="rec-action-btn stop-rec hidden" id="btn-stop-rec">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-              Stop & Save
-            </button>
-          </div>
-        </div>
-
-      </section>
-    </main>
-
-    <!-- ============ EVENT LOG ============ -->
-    <section class="log-section glass" aria-label="Event log">
-      <div class="log-header">
-        <span class="card-title"><span class="card-icon">▤</span> Event Log</span>
-        <button class="icon-btn" id="btn-clear-log" title="Clear log">Clear</button>
-      </div>
-      <div class="log-body" id="log-body" role="log" aria-live="polite">
-        <div class="log-entry log-info">
-          <span class="log-time mono">--:--:--</span>
-          <span class="log-msg">System initialized. Waiting for camera activation…</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ FOOTER ============ -->
-    <footer class="app-footer" role="contentinfo">
-      <span>AI Human Tracker © 2025 Infinity Intelligence</span>
-      <span class="footer-divider">|</span>
-      <span>Powered by MediaPipe · TensorFlow.js</span>
-      <span class="footer-divider">|</span>
-      <span id="footer-model-status">Model: Loading…</span>
-    </footer>
-
-  </div><!-- /app-wrapper -->
-
-  <!-- ======================================================
-       SCRIPTS (ES6 modules)
-  ====================================================== -->
-  <!-- App only — no external AI libs needed for motion trails -->
-  <script type="module" src="script.js"></script>
-</body>
-</html>
+// Start camera automatically on load
+navigator.mediaDevices.getUserMedia({
+  video:{width:{ideal:1280},height:{ideal:720}},
+  audio:false
+}).then(stream=>{
+  vid.srcObject=stream;
+  vid.onloadedmetadata=()=>{
+    vid.play();
+    document.getElementById('s-res').textContent=vid.videoWidth+'x'+vid.videoHeight;
+    log('Camera started','ok');
+    render();
+    setTimeout(initHands,500);
+  };
+}).catch(e=>{
+  log('Camera error: '+(e&&e.message?e.message:e),'warn');
+  document.getElementById('stxt').textContent='Camera denied';
+});
+</script>
 </body>
 </html>
