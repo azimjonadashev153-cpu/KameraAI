@@ -4,277 +4,521 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>AI Hand Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0e1a;color:#f1f5f9;font-family:Inter,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
-#header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(15,23,42,0.8);border-bottom:1px solid rgba(0,212,255,0.2);backdrop-filter:blur(20px);flex-shrink:0}
-.logo{font-size:1.1rem;font-weight:700;background:linear-gradient(90deg,#00d4ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.status{display:flex;align-items:center;gap:8px;font-size:0.78rem;color:#94a3b8}
-.dot{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:all 0.3s}
-.dot.active{background:#10b981;box-shadow:0 0 10px #10b981;animation:blink 1.5s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
-#main{display:flex;flex:1;gap:12px;padding:12px;min-height:0;overflow:hidden}
-#cam-wrap{position:relative;flex:1;background:#000;border-radius:16px;overflow:hidden;border:1px solid rgba(0,212,255,0.2)}
+:root{--c1:#00d4ff;--c2:#a855f7;--c3:#34d399;--c4:#818cf8;--bg:#070c18;--card:rgba(12,20,40,0.75)}
+body{background:var(--bg);color:#f1f5f9;font-family:'Inter',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+
+/* ANIMATED BG */
+#bg{position:fixed;inset:0;z-index:0;overflow:hidden}
+#bg-canvas{width:100%;height:100%;display:block}
+
+/* HEADER */
+#hdr{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:8px 20px;background:rgba(7,12,24,0.85);border-bottom:1px solid rgba(0,212,255,0.15);backdrop-filter:blur(24px);flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-ring{position:relative;width:36px;height:36px}
+.logo-ring::before,.logo-ring::after{content:'';position:absolute;border-radius:50%;border:2px solid var(--c1);animation:spin 4s linear infinite}
+.logo-ring::before{inset:0;opacity:0.7}
+.logo-ring::after{inset:5px;border-color:var(--c2);animation-direction:reverse;animation-duration:3s;opacity:0.5}
+.logo-ai{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--c1);text-shadow:0 0 10px var(--c1)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.logo-txt{font-size:1rem;font-weight:700;background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-sub{font-size:0.6rem;color:#475569;letter-spacing:1px;text-transform:uppercase}
+.status-pill{display:flex;align-items:center;gap:7px;padding:5px 14px;border-radius:999px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,212,255,0.15);font-size:0.72rem;color:#94a3b8;letter-spacing:0.5px}
+.sdot{width:7px;height:7px;border-radius:50%;background:#ef4444;transition:all 0.4s;flex-shrink:0}
+.sdot.on{background:var(--c3);box-shadow:0 0 8px var(--c3);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.clock{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:600;color:var(--c1);text-shadow:0 0 12px rgba(0,212,255,0.5)}
+.date-lbl{font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;text-align:right}
+
+/* MAIN */
+#main{position:relative;z-index:5;display:flex;flex:1;gap:10px;padding:10px;min-height:0;overflow:hidden}
+
+/* CAMERA */
+#cam-wrap{position:relative;flex:1;background:#000;border-radius:14px;overflow:hidden;border:1px solid rgba(0,212,255,0.18);box-shadow:0 0 30px rgba(0,212,255,0.06)}
 video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
-canvas{position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1)}
-#fps{position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.6);color:#10b981;font-size:0.7rem;font-family:monospace;padding:3px 8px;border-radius:6px;border:1px solid rgba(16,185,129,0.3)}
-.corner{position:absolute;width:20px;height:20px;pointer-events:none}
-.corner.tl{top:8px;left:8px;border-top:2px solid #00d4ff;border-left:2px solid #00d4ff}
-.corner.tr{top:8px;right:8px;border-top:2px solid #00d4ff;border-right:2px solid #00d4ff}
-.corner.bl{bottom:8px;left:8px;border-bottom:2px solid #00d4ff;border-left:2px solid #00d4ff}
-.corner.br{bottom:8px;right:8px;border-bottom:2px solid #00d4ff;border-right:2px solid #00d4ff}
-#panel{width:280px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
-.card{background:rgba(15,23,42,0.7);border:1px solid rgba(0,212,255,0.15);border-radius:12px;padding:14px;backdrop-filter:blur(20px)}
-.card h3{font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:10px}
-.mode-btns{display:flex;gap:6px;flex-wrap:wrap}
-.mbtn{padding:6px 12px;border-radius:20px;font-size:0.72rem;font-weight:600;border:1px solid rgba(0,212,255,0.3);color:#94a3b8;background:rgba(255,255,255,0.04);cursor:pointer;transition:all 0.2s}
-.mbtn.active{background:rgba(0,212,255,0.15);border-color:#00d4ff;color:#00d4ff;box-shadow:0 0 10px rgba(0,212,255,0.3)}
-.mbtn.hands.active{background:rgba(52,211,153,0.15);border-color:#34d399;color:#34d399}
-.mbtn.full.active{background:rgba(168,85,247,0.15);border-color:#a855f7;color:#a855f7}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.stat{background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;text-align:center}
-.stat-val{font-size:1.2rem;font-weight:700;color:#00d4ff;font-family:monospace}
-.stat-lbl{font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
-.hand-row{display:flex;justify-content:space-around;padding:4px 0}
-.hand-item{text-align:center}
-.hand-icon{font-size:1.8rem;transition:transform 0.3s}
-.hand-item.active .hand-icon{animation:float 1s ease-in-out infinite}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-.hand-lbl{font-size:0.62rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
-.hand-gest{font-size:0.7rem;color:#34d399;font-weight:600;margin-top:2px;min-height:16px}
-#log{height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
-.log-line{font-size:0.68rem;display:flex;gap:8px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
-.log-t{color:#475569;font-family:monospace;flex-shrink:0}
-.log-m{color:#94a3b8}
-.log-m.ok{color:#10b981}.log-m.warn{color:#f59e0b}.log-m.det{color:#00d4ff}
-#footer{padding:6px 20px;text-align:center;font-size:0.65rem;color:#334155;border-top:1px solid rgba(0,212,255,0.1);flex-shrink:0}
+#oc{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}
+.corner{position:absolute;width:18px;height:18px;pointer-events:none;z-index:3}
+.corner.tl{top:8px;left:8px;border-top:2px solid var(--c1);border-left:2px solid var(--c1);border-radius:3px 0 0 0}
+.corner.tr{top:8px;right:8px;border-top:2px solid var(--c1);border-right:2px solid var(--c1);border-radius:0 3px 0 0}
+.corner.bl{bottom:8px;left:8px;border-bottom:2px solid var(--c1);border-left:2px solid var(--c1);border-radius:0 0 0 3px}
+.corner.br{bottom:8px;right:8px;border-bottom:2px solid var(--c1);border-right:2px solid var(--c1);border-radius:0 0 3px 0}
+.scan{position:absolute;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--c1),transparent);opacity:0.35;animation:scan 3s linear infinite;pointer-events:none;z-index:2}
+@keyframes scan{0%{top:-1px}100%{top:100%}}
+#fps-badge{position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.65);color:var(--c3);font-family:'JetBrains Mono',monospace;font-size:0.68rem;padding:3px 9px;border-radius:6px;border:1px solid rgba(52,211,153,0.25);z-index:4;transition:color 0.3s}
+#fps-badge.slow{color:#f59e0b}
+#fps-badge.bad{color:#ef4444}
+</style>
+
+/* PANEL */
+#panel{width:270px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;scrollbar-width:none}
+#panel::-webkit-scrollbar{display:none}
+.card{background:var(--card);border:1px solid rgba(0,212,255,0.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(20px);transition:border-color 0.3s}
+.card:hover{border-color:rgba(0,212,255,0.25)}
+.card-title{font-size:0.62rem;text-transform:uppercase;letter-spacing:1px;color:#475569;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card-title::before{content:'';width:3px;height:10px;background:var(--c1);border-radius:2px;display:block}
+
+/* MODE BUTTONS */
+.mode-row{display:flex;gap:6px}
+.mbtn{flex:1;padding:7px 0;border-radius:8px;font-size:0.72rem;font-weight:600;border:1px solid rgba(0,212,255,0.2);color:#64748b;background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.25s;letter-spacing:0.3px;font-family:'Inter',sans-serif}
+.mbtn:hover{border-color:rgba(0,212,255,0.4);color:#94a3b8}
+.mbtn.active{background:rgba(0,212,255,0.12);border-color:var(--c1);color:var(--c1);box-shadow:0 0 12px rgba(0,212,255,0.25)}
+.mbtn.mh.active{background:rgba(52,211,153,0.1);border-color:var(--c3);color:var(--c3);box-shadow:0 0 12px rgba(52,211,153,0.2)}
+
+/* STATS */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.stat-box{background:rgba(0,0,0,0.35);border-radius:8px;padding:9px;text-align:center;border:1px solid rgba(255,255,255,0.04);transition:all 0.3s}
+.stat-box.active{border-color:rgba(0,212,255,0.2);box-shadow:0 0 10px rgba(0,212,255,0.06)}
+.sv{font-size:1.3rem;font-weight:700;color:var(--c1);font-family:'JetBrains Mono',monospace;line-height:1}
+.sl{font-size:0.58rem;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:3px}
+
+/* HAND STATUS */
+.hands-display{display:flex;justify-content:space-around;align-items:center;padding:4px 0}
+.hand-box{text-align:center;flex:1;padding:8px;border-radius:10px;border:1px solid transparent;transition:all 0.3s}
+.hand-box.detected{border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.05)}
+.hand-emoji{font-size:2rem;display:block;transition:transform 0.3s;filter:grayscale(0.6);line-height:1.3}
+.hand-box.detected .hand-emoji{filter:none;animation:handFloat 1.5s ease-in-out infinite}
+@keyframes handFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.05)}}
+.hand-side{font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-top:3px}
+.hand-gest{font-size:0.72rem;color:var(--c3);font-weight:600;min-height:18px;margin-top:2px;transition:all 0.3s}
+.hand-divider{width:1px;background:rgba(255,255,255,0.06);align-self:stretch}
+
+/* LOG */
+#log{max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,0.1) transparent}
+.ll{font-size:0.65rem;display:flex;gap:7px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.025);animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.lt{color:#334155;font-family:'JetBrains Mono',monospace;flex-shrink:0;font-size:0.6rem}
+.lm{color:#64748b}.lm.ok{color:var(--c3)}.lm.det{color:var(--c1)}.lm.w{color:#f59e0b}
+
+/* FOOTER */
+#footer{position:relative;z-index:10;padding:5px 20px;text-align:center;font-size:0.62rem;color:#1e293b;border-top:1px solid rgba(0,212,255,0.07);flex-shrink:0}
+
+/* TOAST */
+#toast{position:fixed;bottom:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast-item{background:rgba(12,20,40,0.95);border:1px solid rgba(0,212,255,0.3);border-radius:10px;padding:10px 16px;font-size:0.78rem;color:#f1f5f9;box-shadow:0 8px 24px rgba(0,0,0,0.4);animation:toastIn 0.35s cubic-bezier(.4,0,.2,1)}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+
 </style>
 </head>
 <body>
-<div id="header">
-  <div class="logo">&#x2B21; AI Hand Tracker</div>
-  <div class="status"><div class="dot" id="dot"></div><span id="stxt">Starting camera&#x2026;</span></div>
-  <div style="font-size:0.75rem;color:#00d4ff;font-family:monospace" id="clock"></div>
+<div id="bg"><canvas id="bg-canvas"></canvas></div>
+<div id="toast"></div>
+
+<div id="hdr">
+  <div class="logo">
+    <div class="logo-ring"><div class="logo-ai">AI</div></div>
+    <div>
+      <div class="logo-txt">Hand Tracker</div>
+      <div class="logo-sub">Infinity Intelligence v3.0</div>
+    </div>
+  </div>
+  <div class="status-pill"><div class="sdot" id="sdot"></div><span id="stxt">Starting…</span></div>
+  <div class="hdr-right">
+    <div>
+      <div class="clock" id="clk">00:00:00</div>
+      <div class="date-lbl" id="datelbl"></div>
+    </div>
+  </div>
 </div>
+
 <div id="main">
   <div id="cam-wrap">
     <video id="vid" autoplay playsinline muted></video>
-    <canvas id="cvs"></canvas>
-    <div id="fps">0 FPS</div>
+    <canvas id="oc"></canvas>
+    <div class="scan"></div>
     <div class="corner tl"></div><div class="corner tr"></div>
     <div class="corner bl"></div><div class="corner br"></div>
+    <div id="fps-badge">-- FPS</div>
   </div>
+
   <div id="panel">
     <div class="card">
-      <h3>Skeleton Mode</h3>
-      <div class="mode-btns">
-        <button class="mbtn active" id="m-none" onclick="setMode('none')">None</button>
-        <button class="mbtn hands" id="m-hands" onclick="setMode('hands')">&#x270B; Hands</button>
-        <button class="mbtn full" id="m-full" onclick="setMode('full')">&#x1F9B4; Full Body</button>
+      <div class="card-title">Skeleton Mode</div>
+      <div class="mode-row">
+        <button class="mbtn" id="m-none" onclick="setMode('none')">None</button>
+        <button class="mbtn mh active" id="m-hands" onclick="setMode('hands')">✋ Hands</button>
       </div>
     </div>
+
     <div class="card">
-      <h3>Stats</h3>
+      <div class="card-title">Statistics</div>
       <div class="stat-grid">
-        <div class="stat"><div class="stat-val" id="s-fps">0</div><div class="stat-lbl">FPS</div></div>
-        <div class="stat"><div class="stat-val" id="s-hands">0</div><div class="stat-lbl">Hands</div></div>
-        <div class="stat"><div class="stat-val" id="s-conf">&#x2014;</div><div class="stat-lbl">Confidence</div></div>
-        <div class="stat"><div class="stat-val" id="s-res">&#x2014;</div><div class="stat-lbl">Resolution</div></div>
+        <div class="stat-box" id="sb-fps"><div class="sv" id="sv-fps">0</div><div class="sl">FPS</div></div>
+        <div class="stat-box" id="sb-hands"><div class="sv" id="sv-hands">0</div><div class="sl">Hands</div></div>
+        <div class="stat-box"><div class="sv" id="sv-conf">—</div><div class="sl">Confidence</div></div>
+        <div class="stat-box"><div class="sv" id="sv-res">—</div><div class="sl">Resolution</div></div>
       </div>
     </div>
+
     <div class="card">
-      <h3>Hand Status</h3>
-      <div class="hand-row">
-        <div class="hand-item" id="hi-left">
-          <div class="hand-icon">&#x270B;</div>
-          <div class="hand-lbl">Left</div>
-          <div class="hand-gest" id="hg-left"></div>
+      <div class="card-title">Hand Status</div>
+      <div class="hands-display">
+        <div class="hand-box" id="hb-l">
+          <span class="hand-emoji">✋</span>
+          <div class="hand-side">Left</div>
+          <div class="hand-gest" id="hg-l"></div>
         </div>
-        <div class="hand-item" id="hi-right">
-          <div class="hand-icon" style="transform:scaleX(-1)">&#x270B;</div>
-          <div class="hand-lbl">Right</div>
-          <div class="hand-gest" id="hg-right"></div>
+        <div class="hand-divider"></div>
+        <div class="hand-box" id="hb-r">
+          <span class="hand-emoji" style="transform:scaleX(-1);display:inline-block">✋</span>
+          <div class="hand-side">Right</div>
+          <div class="hand-gest" id="hg-r"></div>
         </div>
       </div>
     </div>
+
     <div class="card">
-      <h3>Event Log</h3>
+      <div class="card-title">Event Log</div>
       <div id="log"></div>
     </div>
   </div>
 </div>
-<div id="footer">AI Hand Tracker &middot; Infinity Intelligence &middot; Powered by MediaPipe Hands</div>
+<div id="footer">AI Hand Tracker · Infinity Intelligence · MediaPipe Hands</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
 <script>
-const vid=document.getElementById('vid');
-const cvs=document.getElementById('cvs');
-const ctx=cvs.getContext('2d');
-let mode='none', lastT=0, frameCount=0, fps=0;
-let leftHand=null, rightHand=null;
+// ─── BACKGROUND PARTICLES ────────────────────────────────────
+const bgC = document.getElementById('bg-canvas');
+const bgX = bgC.getContext('2d');
+let pts = [];
+function initBg(){
+  bgC.width = window.innerWidth; bgC.height = window.innerHeight;
+  pts = Array.from({length:50},()=>({
+    x:Math.random()*bgC.width, y:Math.random()*bgC.height,
+    vx:(Math.random()-.5)*.3, vy:(Math.random()-.5)*.3,
+    r:Math.random()*1.2+.3, a:Math.random()*.4+.05
+  }));
+}
+function drawBg(){
+  bgX.clearRect(0,0,bgC.width,bgC.height);
+  // grid
+  bgX.strokeStyle='rgba(0,212,255,0.03)'; bgX.lineWidth=.5;
+  for(let x=0;x<bgC.width;x+=60){bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,bgC.height);bgX.stroke()}
+  for(let y=0;y<bgC.height;y+=60){bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(bgC.width,y);bgX.stroke()}
+  pts.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0||p.x>bgC.width)p.vx*=-1;
+    if(p.y<0||p.y>bgC.height)p.vy*=-1;
+    bgX.beginPath(); bgX.arc(p.x,p.y,p.r,0,Math.PI*2);
+    bgX.fillStyle=`rgba(0,212,255,${p.a})`; bgX.fill();
+  });
+  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+    const d=Math.hypot(pts[i].x-pts[j].x,pts[i].y-pts[j].y);
+    if(d<100){bgX.beginPath();bgX.moveTo(pts[i].x,pts[i].y);bgX.lineTo(pts[j].x,pts[j].y);
+      bgX.strokeStyle=`rgba(0,212,255,${.08*(1-d/100)})`; bgX.lineWidth=.5; bgX.stroke()}
+  }
+  requestAnimationFrame(drawBg);
+}
+initBg(); window.addEventListener('resize',initBg); drawBg();
 
-// Clock
-setInterval(()=>{
+// ─── CLOCK ────────────────────────────────────────────────────
+function updateClock(){
   const n=new Date();
-  document.getElementById('clock').textContent=n.toLocaleTimeString('en-US',{hour12:false});
-},1000);
+  document.getElementById('clk').textContent=n.toLocaleTimeString('en-US',{hour12:false});
+  document.getElementById('datelbl').textContent=n.toLocaleDateString('en-US',{weekday:'short',day:'2-digit',month:'short'});
+}
+updateClock(); setInterval(updateClock,1000);
 
-// Log
+// ─── LOG ──────────────────────────────────────────────────────
 function log(msg,type=''){
   const d=document.getElementById('log');
   const t=new Date().toLocaleTimeString('en-US',{hour12:false});
-  const l=document.createElement('div');
-  l.className='log-line';
-  l.innerHTML='<span class="log-t">'+t+'</span><span class="log-m '+type+'">'+msg+'</span>';
-  d.appendChild(l);
-  d.scrollTop=d.scrollHeight;
-  while(d.children.length>30)d.firstChild.remove();
+  const l=document.createElement('div'); l.className='ll';
+  l.innerHTML=`<span class="lt">${t}</span><span class="lm ${type}">${msg}</span>`;
+  d.appendChild(l); d.scrollTop=d.scrollHeight;
+  while(d.children.length>25)d.firstChild.remove();
 }
 
-// Mode buttons
+// ─── TOAST ───────────────────────────────────────────────────
+function toast(msg,dur=2500){
+  const c=document.getElementById('toast');
+  const t=document.createElement('div'); t.className='toast-item'; t.textContent=msg;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(30px)';t.style.transition='all 0.3s';setTimeout(()=>t.remove(),300)},dur);
+}
+
+// ─── MODE ─────────────────────────────────────────────────────
+let mode='hands';
 function setMode(m){
   mode=m;
-  ['none','hands','full'].forEach(x=>{
-    document.getElementById('m-'+x).classList.toggle('active',x===m);
-  });
+  document.getElementById('m-none').classList.toggle('active',m==='none');
+  document.getElementById('m-hands').classList.toggle('active',m==='hands');
   log('Mode: '+m,'det');
 }
 
-// Gesture detection
+// ─── GESTURE ─────────────────────────────────────────────────
 function gesture(kps){
-  if(!kps||kps.length<21)return 'Hand';
+  if(!kps||kps.length<21)return'Hand';
   const tips=[4,8,12,16,20],mcp=[2,5,9,13,17];
   const ext=[1,2,3,4].map(i=>kps[tips[i]].y<kps[mcp[i]].y);
   const th=Math.abs(kps[4].x-kps[2].x)>0.06;
-  if(ext.every(Boolean)&&th)return 'Open \u270B';
-  if(ext.every(f=>!f)&&!th)return 'Fist \u270A';
-  if(ext[1]&&!ext[0]&&!ext[2]&&!ext[3])return 'Point \u261D';
-  if(ext[1]&&ext[2]&&!ext[0]&&!ext[3])return 'Peace \u270C';
-  if(th&&!ext[1]&&!ext[2]&&!ext[3])return 'Thumbs \uD83D\uDC4D';
-  return 'Hand';
+  if(ext.every(Boolean)&&th)return'Open ✋';
+  if(ext.every(f=>!f)&&!th)return'Fist ✊';
+  if(ext[1]&&!ext[0]&&!ext[2]&&!ext[3])return'Point ☝';
+  if(ext[1]&&ext[2]&&!ext[0]&&!ext[3])return'Peace ✌';
+  if(th&&!ext[0]&&!ext[1]&&!ext[2]&&!ext[3])return'Thumbs 👍';
+  if(!ext[0]&&!ext[1]&&!ext[2]&&!ext[3]&&!th)return'Fist ✊';
+  return'Hand';
 }
+</script>
 
-// Hand connections (MediaPipe 21-landmark topology)
+<script>
+// ─── HAND CONNECTIONS ─────────────────────────────────────────
 const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const TIPS=[4,8,12,16,20];
+// Finger segment colors for lifelike look
+const FINGER_COLORS=['rgba(255,180,100,','rgba(100,220,180,','rgba(130,160,255,','rgba(255,130,180,','rgba(180,230,100,'];
+const PALM_COLOR='rgba(0,212,255,';
 
-// Draw one hand
-function drawHand(kps,side){
-  const W=cvs.width,H=cvs.height;
-  const c=side==='Left'
-    ?{l:'rgba(52,211,153,0.9)',g:'rgba(52,211,153,0.4)'}
-    :{l:'rgba(129,140,248,0.9)',g:'rgba(129,140,248,0.4)'};
+// Trail particles per hand
+const trails={Left:[],Right:[]};
+const MAX_TRAIL=12;
+
+let phase=0;
+const vid=document.getElementById('vid');
+const oc=document.getElementById('oc');
+const ctx=oc.getContext('2d');
+let lastHands=[];
+let lastT=0,frames=0,fps=0;
+let prevGesture={Left:'',Right:''};
+
+// ─── DRAW HAND ────────────────────────────────────────────────
+function drawHand(kps,side,conf){
+  const W=oc.width,H=oc.height;
   const p=k=>({x:k.x*W,y:k.y*H});
-  // Glow pass
-  CONN.forEach(([a,b])=>{
+  const pulse=0.75+0.25*Math.sin(phase+(side==='Left'?0:Math.PI));
+
+  // --- BONE SEGMENTS by finger ---
+  // Each finger: [mcp, pip, dip, tip]
+  const fingers=[[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
+  fingers.forEach((seg,fi)=>{
+    const col=fi===0?PALM_COLOR:FINGER_COLORS[fi-1];
+    for(let i=0;i<seg.length-1;i++){
+      const a=p(kps[seg[i]]),b=p(kps[seg[i+1]]);
+      const thick=fi===0?3.5:4.5-i*.5;
+      // Outer glow
+      ctx.save();
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle=col+(0.15*pulse)+')';
+      ctx.lineWidth=thick*4;ctx.lineCap='round';ctx.filter='blur(6px)';ctx.stroke();ctx.restore();
+      // Mid glow
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle=col+(0.35*pulse)+')';
+      ctx.lineWidth=thick*1.8;ctx.lineCap='round';ctx.stroke();
+      // Sharp bone
+      const g=ctx.createLinearGradient(a.x,a.y,b.x,b.y);
+      g.addColorStop(0,col+(0.7*pulse)+')');
+      g.addColorStop(.5,col+(0.95*pulse)+')');
+      g.addColorStop(1,col+(0.7*pulse)+')');
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle=g;ctx.lineWidth=thick;ctx.lineCap='round';ctx.stroke();
+    }
+  });
+  // Palm connections
+  [[0,5],[0,17],[5,9],[9,13],[13,17]].forEach(([a,b])=>{
     const pa=p(kps[a]),pb=p(kps[b]);
     ctx.save();
     ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);
-    ctx.strokeStyle=c.g;ctx.lineWidth=8;ctx.lineCap='round';ctx.filter='blur(4px)';
-    ctx.stroke();
-    ctx.restore();
+    ctx.strokeStyle=PALM_COLOR+(0.12*pulse)+')';ctx.lineWidth=16;ctx.lineCap='round';ctx.filter='blur(8px)';ctx.stroke();ctx.restore();
     ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);
-    ctx.strokeStyle=c.l;ctx.lineWidth=2.5;ctx.lineCap='round';
-    ctx.stroke();
+    ctx.strokeStyle=PALM_COLOR+(0.5*pulse)+')';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
   });
-  // Joints
-  kps.forEach((k,i)=>{
-    const pt=p(k),isTip=[4,8,12,16,20].includes(i),r=isTip?5:3;
-    ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);
-    ctx.fillStyle=isTip?'#fff':c.l;
-    ctx.shadowColor=c.g;ctx.shadowBlur=isTip?12:6;
-    ctx.fill();ctx.shadowBlur=0;
-  });
-}
 
-// Render loop
-function render(){
-  cvs.width=vid.videoWidth||640;
-  cvs.height=vid.videoHeight||480;
-  ctx.clearRect(0,0,cvs.width,cvs.height);
-  if(mode!=='none'){
-    if(leftHand)drawHand(leftHand,'Left');
-    if(rightHand)drawHand(rightHand,'Right');
+  // --- JOINTS ---
+  kps.forEach((k,i)=>{
+    const pt=p(k);
+    const isTip=TIPS.includes(i);
+    const isWrist=i===0;
+    const fi=i<=4?0:i<=8?1:i<=12?2:i<=16?3:4;
+    const col=fi===0?PALM_COLOR:FINGER_COLORS[fi-1];
+    const r=isWrist?7:isTip?6:3.5;
+    // Shadow
+    ctx.beginPath();ctx.arc(pt.x+1,pt.y+1,r,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fill();
+    // 3D sphere
+    const sg=ctx.createRadialGradient(pt.x-r*.35,pt.y-r*.35,r*.05,pt.x,pt.y,r);
+    if(isWrist||isTip){
+      sg.addColorStop(0,'rgba(255,255,255,'+(.9*pulse)+')');
+      sg.addColorStop(.45,col+(.8*pulse)+')');
+      sg.addColorStop(1,col+(.4*pulse)+')');
+    } else {
+      sg.addColorStop(0,col+(.9*pulse)+')');
+      sg.addColorStop(.6,col+(.65*pulse)+')');
+      sg.addColorStop(1,col+(.3*pulse)+')');
+    }
+    ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);ctx.fillStyle=sg;
+    ctx.shadowColor=col+'.8)';ctx.shadowBlur=isTip?14:8;ctx.fill();ctx.shadowBlur=0;
+    // Specular
+    ctx.beginPath();ctx.arc(pt.x-r*.3,pt.y-r*.3,r*.3,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,'+(0.45*pulse)+')';ctx.fill();
+  });
+
+  // --- WRIST LABEL ---
+  const w=p(kps[0]);
+  ctx.save();
+  ctx.font='bold 11px Inter,sans-serif';
+  ctx.fillStyle=`rgba(0,212,255,${0.85*pulse})`;
+  ctx.textAlign='center';
+  ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=6;
+  ctx.fillText(side,w.x,w.y+18);
+  ctx.restore();
+
+  // --- CONFIDENCE RING on wrist ---
+  if(conf){
+    ctx.beginPath();
+    ctx.arc(w.x,w.y,10,0,Math.PI*2*conf);
+    ctx.strokeStyle=`rgba(0,212,255,${0.6*pulse})`;
+    ctx.lineWidth=2;ctx.stroke();
   }
-  frameCount++;
+
+  // --- TRAIL particles ---
+  const tr=trails[side];
+  const tip=p(kps[8]); // index tip
+  if(tr.length===0||Math.hypot(tip.x-tr[tr.length-1].x,tip.y-tr[tr.length-1].y)>8){
+    tr.push({x:tip.x,y:tip.y,age:0,side});
+    if(tr.length>MAX_TRAIL)tr.shift();
+  }
+  tr.forEach(t=>t.age++);
+  for(let i=1;i<tr.length;i++){
+    const a=tr[i-1],b=tr[i];
+    const al=(1-a.age/MAX_TRAIL)*(1-b.age/MAX_TRAIL);
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=`rgba(0,212,255,${al*0.7})`;ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();
+    ctx.beginPath();ctx.arc(b.x,b.y,2,0,Math.PI*2);
+    ctx.fillStyle=`rgba(0,212,255,${al*0.9})`;ctx.fill();
+  }
+}
+</script>
+
+<script>
+// ─── RENDER LOOP ──────────────────────────────────────────────
+function render(){
+  phase+=0.06;
+  oc.width=vid.videoWidth||640;
+  oc.height=vid.videoHeight||480;
+  ctx.clearRect(0,0,oc.width,oc.height);
+
+  if(mode==='hands' && lastHands.length>0){
+    lastHands.forEach(h=>drawHand(h.kps,h.side,h.conf));
+  }
+
+  // FPS
+  frames++;
   const now=performance.now();
   if(now-lastT>=1000){
-    fps=Math.round(frameCount*1000/(now-lastT));
-    frameCount=0;lastT=now;
-    document.getElementById('fps').textContent=fps+' FPS';
-    document.getElementById('s-fps').textContent=fps;
+    fps=Math.round(frames*1000/(now-lastT));
+    frames=0;lastT=now;
+    const fb=document.getElementById('fps-badge');
+    fb.textContent=fps+' FPS';
+    fb.className='';
+    if(fps<20)fb.className='bad';
+    else if(fps<35)fb.className='slow';
+    document.getElementById('sv-fps').textContent=fps;
+    document.getElementById('sb-fps').classList.toggle('active',fps>25);
   }
   requestAnimationFrame(render);
 }
 
-// MediaPipe Hands init
+// ─── MEDIAPIPE INIT ───────────────────────────────────────────
 function initHands(){
-  log('Loading MediaPipe Hands\u2026');
+  log('Loading MediaPipe Hands…');
   const hands=new Hands({
     locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/'+f
   });
   hands.setOptions({
     maxNumHands:2,
-    modelComplexity:1,
-    minDetectionConfidence:0.7,
-    minTrackingConfidence:0.5
+    modelComplexity:1,           // 0=lite (faster), 1=full (accurate)
+    minDetectionConfidence:0.75,
+    minTrackingConfidence:0.6
   });
+
   hands.onResults(r=>{
-    leftHand=null;rightHand=null;
-    const ml=r.multiHandLandmarks||[],mh=r.multiHandedness||[];
+    const ml=r.multiHandLandmarks||[];
+    const mh=r.multiHandedness||[];
+    lastHands=[];
+    let leftDet=false,rightDet=false;
+
     ml.forEach((lm,i)=>{
-      const side=mh[i]&&mh[i].label?mh[i].label:'Right';
+      const side=mh[i]?.label||'Right';
+      const conf=mh[i]?.score||0.9;
+      lastHands.push({kps:lm,side,conf});
+
       const g=gesture(lm);
       if(side==='Left'){
-        leftHand=lm;
-        document.getElementById('hi-left').classList.add('active');
-        document.getElementById('hg-left').textContent=g;
+        leftDet=true;
+        document.getElementById('hb-l').classList.add('detected');
+        document.getElementById('hg-l').textContent=g;
+        if(g!==prevGesture.Left){log('Left: '+g,'det');prevGesture.Left=g;}
       } else {
-        rightHand=lm;
-        document.getElementById('hi-right').classList.add('active');
-        document.getElementById('hg-right').textContent=g;
+        rightDet=true;
+        document.getElementById('hb-r').classList.add('detected');
+        document.getElementById('hg-r').textContent=g;
+        if(g!==prevGesture.Right){log('Right: '+g,'det');prevGesture.Right=g;}
       }
-      document.getElementById('s-hands').textContent=ml.length;
-      document.getElementById('s-conf').textContent=Math.round(((mh[i]&&mh[i].score)||0.9)*100)+'%';
     });
-    if(ml.length===0){
-      document.getElementById('hi-left').classList.remove('active');
-      document.getElementById('hg-left').textContent='';
-      document.getElementById('hi-right').classList.remove('active');
-      document.getElementById('hg-right').textContent='';
-      document.getElementById('s-hands').textContent='0';
+
+    if(!leftDet){
+      document.getElementById('hb-l').classList.remove('detected');
+      document.getElementById('hg-l').textContent='';
+      trails.Left=[];
+    }
+    if(!rightDet){
+      document.getElementById('hb-r').classList.remove('detected');
+      document.getElementById('hg-r').textContent='';
+      trails.Right=[];
+    }
+
+    document.getElementById('sv-hands').textContent=ml.length;
+    document.getElementById('sb-hands').classList.toggle('active',ml.length>0);
+    if(ml.length>0){
+      const c=Math.round((mh[0]?.score||0.9)*100);
+      document.getElementById('sv-conf').textContent=c+'%';
     }
   });
+
   hands.initialize().then(()=>{
-    log('Hands model ready!','ok');
-    document.getElementById('dot').classList.add('active');
+    log('Model ready — show your hands!','ok');
+    toast('✋ Hand Tracker Ready!');
+    document.getElementById('sdot').classList.add('on');
     document.getElementById('stxt').textContent='Camera Active';
-    // Auto-switch to Hands mode so skeleton is visible immediately
-    setMode('hands');
+
+    // Optimized frame sending — skip frames if busy
+    let busy=false;
     function sendFrame(){
-      if(vid.readyState>=2)hands.send({image:vid});
+      if(!busy && vid.readyState>=2){
+        busy=true;
+        hands.send({image:vid}).finally(()=>{busy=false;});
+      }
       requestAnimationFrame(sendFrame);
     }
     sendFrame();
   }).catch(e=>{
-    log('Hands failed: '+(e&&e.message?e.message:e),'warn');
+    log('Model failed: '+(e?.message||e),'w');
+    toast('⚠ Model load failed');
   });
 }
 
-// Start camera automatically on load
+// ─── CAMERA START ─────────────────────────────────────────────
 navigator.mediaDevices.getUserMedia({
-  video:{width:{ideal:1280},height:{ideal:720}},
+  video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},
   audio:false
 }).then(stream=>{
   vid.srcObject=stream;
   vid.onloadedmetadata=()=>{
     vid.play();
-    document.getElementById('s-res').textContent=vid.videoWidth+'x'+vid.videoHeight;
-    log('Camera started','ok');
+    const res=vid.videoWidth+'×'+vid.videoHeight;
+    document.getElementById('sv-res').textContent=res;
+    log('Camera started ('+res+')','ok');
+    toast('📷 Camera Connected');
     render();
-    setTimeout(initHands,500);
+    setTimeout(initHands,300);
   };
 }).catch(e=>{
-  log('Camera error: '+(e&&e.message?e.message:e),'warn');
+  log('Camera: '+(e?.message||e),'w');
   document.getElementById('stxt').textContent='Camera denied';
+  toast('❌ Camera access denied');
 });
 </script>
 </body>
